@@ -18,3 +18,5 @@ an oligo candidate has a reasonable (e.g. ddG=5) binding affinity to some other 
 # Multiple Binding sites within one mRNA
 
 Pedersen 2020
+
+Test saturday
