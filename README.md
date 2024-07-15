@@ -44,7 +44,7 @@ The aim of this software is to give an overview of thermodynamic and kinetic cal
 
 ## Pre-requisites
 
-* Working installation of Bowtie2 (path for bowtie index needs to be stated in config
+* Working installation of Bowtie2 (path for bowtie index needs to be stated in config)
 * pyensemble, biopython
 * RNAcofold (command line tool from ViennaRNA)
 
