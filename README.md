@@ -9,6 +9,11 @@ This will be a software package that helps the ASO design process to find optima
 * RNAcofold (ViennaRNA): Calculating dG (affinity)
 
 
+## Status Quo
+
+`main.py` takes a gene id from ENsembl and a k-mer length as input. Genome and annotation release are configurable. Paths to bowtie and pyensemble are hard coded as of right now. Output is a csv file containing a list of distinct oligo candidates (reverse complement of target sites) targeting the input gene.
+
+e.g.: KRAS 16 mers should result in 7402 candidate oligos.
 
 
 # Binding Multiplicity
