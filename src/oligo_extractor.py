@@ -73,7 +73,7 @@ class OligoExtractor:
             print(len(transcripts))
 
         if save_to_file:
-            file = open(save_to_file, "w")
+            file = open(f"{config['DEFAULT']['DataDir']}/{save_to_file}", "w")
         for t in transcripts:
             if t.transcript_id not in transcript_lookup.keys():
                 transcript_lookup[t.transcript_id] = {"gene_id": t.gene_id, "gene_name": t.gene_name}
@@ -165,6 +165,7 @@ class OligoExtractor:
         logging.info(f"{len(candidate_oligos)} candidate {self.k}mers found")
         seq_count_id = 1
 
+        os.makedirs(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home', exist_ok=True)
         with open(self.bowtie_infile, "w") as tmp_bowtie_in:
             for can in candidate_oligos:
                 tmp_bowtie_in.write(">S" + str(seq_count_id).zfill(6) + "\n")
