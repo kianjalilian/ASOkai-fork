@@ -1,10 +1,11 @@
 import os
 from ftplib import FTP
 
-def download_scaffold(path, genome_assembly, ensembl_release):
+def collect_scaffold(path, genome_assembly, ensembl_release):
     """ Download the specified human scaffold from ENSEMBL if it is not already present in
-        current directory. In either case, return the filename. """
-    filepath = path + f"/GRCh{genome_assembly}/ensembl{ensembl_release}/"
+        current directory. In either case, return the file path. """
+        
+    filepath = path + f"/pyensembl/GRCh{genome_assembly}/ensembl{ensembl_release}/"
     filename = f"Homo_sapiens.GRCh{genome_assembly}.{ensembl_release}.chr_patch_hapl_scaff.gtf.gz"
 
     if not os.path.exists(filepath+filename):  # Don't re-download.
@@ -15,8 +16,14 @@ def download_scaffold(path, genome_assembly, ensembl_release):
         os.makedirs(filepath, exist_ok=True)
 
         with open(filepath + filename, 'wb') as fp:
-            ftp.retrbinary("RETR " + filename, fp.write)
-            print('# Downloaded', filename)
+            
+            try:
+                ftp.retrbinary("RETR " + filename, fp.write)
+            except:
+                print('# Could not collect Scaffold')
+                return None
+            
+            print('# Downloaded', filename, 'Scaffold')
     else:
-        print('# Using', filename)
-    return filename
+        print('# Using', filename, 'Scaffold')
+    return filepath + filename
