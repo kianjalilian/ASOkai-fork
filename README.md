@@ -60,5 +60,5 @@ The resulting index only contains coding DNA, the transcriptome. For genome, the
 
 ```
 cat Homo_sapiens.GRCh38.dna.chromosome.*.fa > Homo_sapiens.GRCh38.dna.all.fa
-bowtie2-build <path to file>/Homo_sapiens.GRCh38.dna.all.fa <bowtie index name>
+bowtie2-build --threads <i> <path to file>/Homo_sapiens.GRCh38.dna.all.fa <bowtie index name>
 ```
