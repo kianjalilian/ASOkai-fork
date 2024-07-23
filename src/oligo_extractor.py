@@ -17,20 +17,19 @@ config.read('config.ini')
 
 
 class OligoExtractor:
-    def __init__(self, gene_id, e_release, g_assembly, species, k, gc_bounds= None, scaffold_path=None):
+    def __init__(self, gene_id, e_release, g_assembly, species, k, bowtie_index, gc_bounds= None, scaffold_path=None):
         self.gene_id = gene_id
         self.k = k
         self.filtered_kmers = []
         self.gc_bounds=gc_bounds
+        self.bowtie_index = bowtie_index
         self.bowtie_infile = f"{config['DEFAULT']['DataDir']}/bowtie2Home/{self.gene_id}_{self.k}mers.fa"
 
         if species == "mouse":
             species = "mus_musculus"
             # mouse doesn't have scaffold so far...
-            self.bowtie_index = f"GRCm{g_assembly}_{e_release}"
         elif species == "human":
             species = "homo_sapiens"
-            self.bowtie_index = f"GRCh{g_assembly}"
         else:
             raise ValueError("Only mouse or human species implemented.")
 

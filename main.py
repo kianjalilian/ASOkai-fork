@@ -3,6 +3,7 @@ import csv
 import argparse
 import sys
 from utils.file_operations import collect_scaffold
+from utils.bowtie2_operations import build_bowtie_index
 import logging
 from src.oligo_extractor import OligoExtractor
 from Bio.Seq import Seq
@@ -22,6 +23,8 @@ if __name__ == '__main__':
     
 
     os.environ['PYENSEMBL_CACHE_DIR'] = F'{config["DEFAULT"]["DataDir"]}'
+    os.environ['BOWTIE2_INDEXES '] = F'{config["DEFAULT"]["DataDir"]}/bowtie2Home'
+
 
     parser = argparse.ArgumentParser(
         description="Run the ASO thermodynamics pipeline to retrieve the ddG landscape for "
@@ -58,6 +61,12 @@ if __name__ == '__main__':
         default=111,
         help="Ensemble release, default=111"
     )
+    parser.add_argument(
+        '--bowtie2-index', '-bi',
+        action=argparse.BooleanOptionalAction, 
+        default=False,
+        help='If passed, builds bowtie2 index of the genome'
+    )
 
     args = parser.parse_args()
     logging.basicConfig(
@@ -74,15 +83,20 @@ if __name__ == '__main__':
         bowtie_index = f"GRCm{args.genome_assembly}_{args.ensembl_release}"
     elif args.species == "human":
             
-        scaffold_path = collect_scaffold(config['DEFAULT']['DataDir'], args.genome_assembly, args.ensembl_release)
+        # scaffold_path = collect_scaffold(config['DEFAULT']['DataDir'], args.genome_assembly, args.ensembl_release)
+        scaffold_path = None
 
         bowtie_index = f"GRCh{args.genome_assembly}"
     else:
         raise ValueError("Only mouse and human species implemented.")
 
     logging.info(args)
-    oligo_obj = OligoExtractor(args.gene_id, args.ensembl_release, args.genome_assembly, args.species, args.k, None, scaffold_path)
+    oligo_obj = OligoExtractor(args.gene_id, args.ensembl_release, args.genome_assembly, args.species, args.k, bowtie_index, None, scaffold_path)
     oligo_obj.get_candidate_oligos_by_gene()
+    
+    if args.bowtie2_index:
+        build_bowtie_index(args.ensembl_release, args.genome_assembly, args.species, bowtie_index)
+        
     oligo_obj.run_bowtie()
 
     # TODO: make optional
