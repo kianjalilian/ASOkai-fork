@@ -96,7 +96,7 @@ class OligoExtractor:
         # Run RNAcofold
         logging.info("Running Bowtie2")
 
-        command = f'bowtie2 --no-head -t -p 10 -N 0 -a -f -x {config["DEFAULT"]["DataDir"]}/bowtie2Home/{self.bowtie_index} -U {self.bowtie_infile} -S {outFile} --norc'
+        command = f'bowtie2 --no-head -t -p 10 -N 0 -a -f -x {config["DEFAULT"]["DataDir"]}/bowtie2Home/{self.bowtie_index} -U {self.bowtie_infile} -S {outFile} --norc {config["DEFAULT"]["BowtieArgs"]}'
         logging.info("Command: {}".format(command))
         return_code = self._runCommand(command)
         logging.info("Return Code: {}".format(return_code))
