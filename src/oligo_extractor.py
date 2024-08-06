@@ -4,9 +4,12 @@ import shlex
 import os
 from Bio.SeqUtils import gc_fraction
 from pyensembl import EnsemblRelease, Genome
+from utils.sequence_analysis import get_kmer_occurances
 import logging
 import time
 import configparser 
+import pandas as pd
+
 
 # Create a configparser object
 config = configparser.ConfigParser()
@@ -20,20 +23,21 @@ class OligoExtractor:
     def __init__(self, gene_id, e_release, g_assembly, species, k, bowtie_index, gc_bounds= None, scaffold_path=None):
         self.gene_id = gene_id
         self.k = k
+        self.g_assembly =  g_assembly
         self.filtered_kmers = []
         self.gc_bounds=gc_bounds
         self.bowtie_index = bowtie_index
         self.bowtie_infile = f"{config['DEFAULT']['DataDir']}/bowtie2Home/{self.gene_id}_{self.k}mers.fa"
 
         if species == "mouse":
-            species = "mus_musculus"
+            self.species = "mus_musculus"
             # mouse doesn't have scaffold so far...
         elif species == "human":
-            species = "homo_sapiens"
+            self.species = "homo_sapiens"
         else:
             raise ValueError("Only mouse or human species implemented.")
-
-        self.ensembl_obj = EnsemblRelease(release=e_release, species=species)
+        
+        self.ensembl_obj = EnsemblRelease(release=e_release, species=self.species)
         self.ensembl_obj.download()
         self.ensembl_obj.index()
         self.scaffold_path = scaffold_path
@@ -49,9 +53,10 @@ class OligoExtractor:
             self.ensembl_obj_scaffolds.index()
 
         self.gene = self.ensembl_obj.gene_by_id(gene_id=gene_id)
+        
         logging.info(f"Gene name: {self.gene.gene_name}")
         logging.info(f"Build transcript gene references")
-        self.transcript_lookup = self._get_gene_transcript_mapping(save_to_file=f"transcript_gene_mapping_GRC{species[0]}{g_assembly}.csv")
+        self.transcript_lookup = self._get_gene_transcript_mapping(save_to_file=f"transcript_gene_mapping_GRC{self.species[0]}{g_assembly}.csv")
 
     def _kmers(self, s):
         kmers_list = [s[i:i + self.k] for i in range(len(s) - self.k + 1)]
@@ -79,7 +84,7 @@ class OligoExtractor:
                 if save_to_file:
                     for e in t.exons:
                         file.write(
-                            f"{t.transcript_id},{t.gene_id},{t.start},{t.end},{e.exon_id},{e.start},{e.end},{t.gene_name}\n")
+                            f"{t.transcript_id},{t.gene_id},{t.contig}:{t.start},{t.contig}:{t.end},{e.exon_id},{e.start},{e.end},{t.gene_name}\n")
         if save_to_file:
             file.close()
         return transcript_lookup
@@ -90,7 +95,6 @@ class OligoExtractor:
         return return_code
 
     def run_bowtie(self):
-        logging.info(f"Running Bowtie2")
         outFile = os.path.splitext(self.bowtie_infile)[0] + ".sam"
 
         # Run RNAcofold
@@ -108,6 +112,7 @@ class OligoExtractor:
             for row in align_file:
                 if not current_targetSite:
                     current_targetSite = row[9]  # SEQ field in SAM
+                    
                 if current_targetSite != row[9]:
                     if current_targetSite == 'AAAGACTCCTAATAGC':
                         print(f"AZD4785: {current_ah_genes}")
@@ -139,6 +144,7 @@ class OligoExtractor:
                     for e in t.exons:
                         if e.start <= abs_pos <= e.end:
                             exon_hits_target_gene.add(e.exon_id)
+                            
         end = time.time() - start
         logging.info(f"Viable  {self.k}mers candidates after Bowtie: {len(self.filtered_kmers)}")
         logging.info(f"Bowtie Processing time: {end}")
@@ -170,3 +176,16 @@ class OligoExtractor:
                 tmp_bowtie_in.write(">S" + str(seq_count_id).zfill(6) + "\n")
                 tmp_bowtie_in.write(str(can) + "\n")
                 seq_count_id += 1
+    
+       
+    def get_kmer_occurances(self):
+        
+        sam_out = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home/ENSG00000133703_16mers.sam', sep="\t", header=None)
+        transcript_gene_mapping = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/transcript_gene_mapping_GRCh38.csv', sep=",", header=None)
+        
+        sam_out = get_kmer_occurances(sam_out, transcript_gene_mapping, self.ensembl_obj)
+        sam_out.to_csv(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home/ENSG00000133703_16mers_test.sam', sep='\t', index=False, header=False)
+        
+
+    
+

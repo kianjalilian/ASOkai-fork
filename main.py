@@ -2,14 +2,12 @@
 import csv
 import argparse
 import sys
-from utils.file_operations import collect_scaffold
-from utils.file_operations import build_bowtie_index
+from utils.file_operations import collect_scaffold, build_bowtie_index
 import logging
 from src.oligo_extractor import OligoExtractor
 from Bio.Seq import Seq
 import configparser
 import os
-
 
 
 
@@ -98,8 +96,10 @@ if __name__ == '__main__':
         build_bowtie_index(args.ensembl_release, args.genome_assembly, args.species, bowtie_index)
         
     oligo_obj.run_bowtie()
+    
+    oligo_obj.get_kmer_occurances()
 
-    os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
+    os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True) 
 
     with open(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers_test.csv", "w") as filteredkmerfile:
         writer = csv.writer(filteredkmerfile)
