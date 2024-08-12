@@ -25,7 +25,7 @@ if __name__ == '__main__':
     
     try:
         # Set Environment variables to use the data dir from config file
-        os.environ['PYENSEMBL_CACHE_DIR'] = F'{config["DEFAULT"]["DataDir"]}'
+        os.environ['PYENSEMBL_CACHE_DIR'] = F'{config["DEFAULT"]["PyEnsemblDataDir"]}'
         os.environ['BOWTIE2_INDEXES '] = F'{config["DEFAULT"]["DataDir"]}/bowtie2Home'
     except KeyError as e:
         logging.error(f"Missing configuration parameter: {e}")
@@ -89,7 +89,7 @@ if __name__ == '__main__':
             scaffold_path = None
             bowtie_index = f"GRCm{args.genome_assembly}_{args.ensembl_release}"
         elif args.species == "human":
-            scaffold_path = collect_scaffold(config['DEFAULT']['DataDir'], args.genome_assembly, args.ensembl_release)
+            scaffold_path = collect_scaffold(config['DEFAULT']['PyEnsemblDataDir'], args.genome_assembly, args.ensembl_release)
             bowtie_index = f"GRCh{args.genome_assembly}"
         else:
             raise ValueError("Only mouse and human species implemented.")

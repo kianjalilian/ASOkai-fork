@@ -81,9 +81,9 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index):
     logging.info("Running Bowtie2 index build")
 
     if species == 'human':
-        command = f'bowtie2-build {config["DEFAULT"]["DataDir"]}/pyensembl/GRCh{g_assembly}/ensembl{e_release}/Homo_sapiens.GRCh{g_assembly}.cdna.all.fa.gz {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
+        command = f'bowtie2-build {config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCh{g_assembly}/ensembl{e_release}/Homo_sapiens.GRCh{g_assembly}.cdna.all.fa.gz {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
     elif species == 'mouse':
-        command = f'bowtie2-build {config["DEFAULT"]["DataDir"]}/pyensembl/GRCm{g_assembly}/ensembl{e_release}/Mus_musculus.GRCm{g_assembly}.cdna.all.fa.gz {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
+        command = f'bowtie2-build {config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCm{g_assembly}/ensembl{e_release}/Mus_musculus.GRCm{g_assembly}.cdna.all.fa.gz {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
     
     logging.info("Command: {}".format(command))
 
