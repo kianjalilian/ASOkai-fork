@@ -4,6 +4,8 @@ from tqdm import tqdm
 import pandas as pd
 import configparser
 import os
+import subprocess
+import shlex
 
 
 # Create a configparser object
@@ -12,9 +14,8 @@ config = configparser.ConfigParser()
 # Read the configuration file
 config.read('config.ini')
 
-def get_chromosomal_positions_per_transcript(row, ensembl_obj, transcript_map_dict, ensembl_obj_scaffolds = None):
-    transcript_id = row[2].split(".")[0]
-    chromosome, _ = transcript_map_dict[transcript_id].split(':')
+def get_chromosomal_positions_per_transcript(transcript, position_in_transcript, ensembl_obj, ensembl_obj_scaffolds = None):
+    transcript_id = transcript.split(".")[0]
 
     try:
         transcript = ensembl_obj.transcript_by_id(transcript_id=transcript_id)
@@ -27,11 +28,11 @@ def get_chromosomal_positions_per_transcript(row, ensembl_obj, transcript_map_di
 
     start_pos, end_pos = calculate_chromosomal_positions(
         transcript.exon_intervals,
-        row[3],
+        position_in_transcript,
         transcript.strand
     )
     
-    key = f'{chromosome}:{start_pos}-{end_pos}:{transcript.strand}'
+    key = f'{transcript.contig}:{start_pos}-{end_pos}:{transcript.strand}'
     return key
 
 
@@ -60,7 +61,9 @@ def calculate_chromosomal_positions(exon_intervals, pos, strand):
             accumulated += (exon[1] - exon[0] + 1)
 
 
-def calculate_occurances(transcript_map_dict, ensembl_obj, candidates, ensembl_obj_scaffolds = None):
+
+
+def calculate_occurances(ensembl_obj, candidates, ensembl_obj_scaffolds = None):
     """
     Calculate the number of distinct positions a sequence occurs at.
     """
@@ -71,7 +74,7 @@ def calculate_occurances(transcript_map_dict, ensembl_obj, candidates, ensembl_o
     
     def rcheck(row):
 
-        key = get_chromosomal_positions_per_transcript(row, ensembl_obj, transcript_map_dict, ensembl_obj_scaffolds)
+        key = get_chromosomal_positions_per_transcript(row[2], row[3], ensembl_obj, ensembl_obj_scaffolds)
         
         if key not in distinct_positions:
             distinct_positions.add(key)
@@ -80,22 +83,22 @@ def calculate_occurances(transcript_map_dict, ensembl_obj, candidates, ensembl_o
     
     return len(distinct_positions)
 
-def worker(seq, transcript_map_dict, ensembl_obj, candidates, ensembl_obj_scaffolds = None):
+def worker(seq, ensembl_obj, candidates, ensembl_obj_scaffolds = None):
     """
     Worker function to calculate occurrences for a given sequence.
     """
-    return seq, calculate_occurances(transcript_map_dict, ensembl_obj, candidates, ensembl_obj_scaffolds)
+    return seq, calculate_occurances(ensembl_obj, candidates, ensembl_obj_scaffolds)
 
-def create_occurrence_dict(unique_seqs, transcript_map_dict, ensembl_obj, sam_out, ensembl_obj_scaffolds = None):
+def create_occurrence_dict(unique_seqs, ensembl_obj, sam_out, ensembl_obj_scaffolds = None):
     """
     Create a dictionary of sequence occurrences using multiprocessing.
     """
     num_cpus = os.cpu_count()
     with multiprocessing.Pool(processes=num_cpus) as pool:
-        pbar = tqdm(total=len(unique_seqs), desc="Processing Sequences", position=0, leave=True)
+        pbar = tqdm(total=len(unique_seqs), desc="Processing Sequences", position=0, leave=True, mininterval=10)
 
         results = []
-        async_results = [pool.apply_async(worker, (seq, transcript_map_dict, ensembl_obj, sam_out[sam_out[9] == seq], ensembl_obj_scaffolds), 
+        async_results = [pool.apply_async(worker, (seq, ensembl_obj, sam_out[sam_out[9] == seq], ensembl_obj_scaffolds), 
                                           callback=lambda _: pbar.update()) for seq in unique_seqs]
 
         for r in async_results:
@@ -105,14 +108,61 @@ def create_occurrence_dict(unique_seqs, transcript_map_dict, ensembl_obj, sam_ou
 
     return dict(results)
 
-def get_kmer_occurances(sam_out, transcript_gene_mapping, ensembl_obj, ensembl_obj_scaffolds = None):
+def get_kmer_occurances(sam_out, ensembl_obj, ensembl_obj_scaffolds = None):
     """
-    Main function to get k-mer occurrences and add them to the SAM output.
+    Main function to get k-mer occurrences and add them to the SAM output. 
+    Returns a Dictionary with kmers as key and the number of occurences as value
     """
-    transcript_map_dict = dict(zip(transcript_gene_mapping[0], transcript_gene_mapping[3]))
     unique_seqs = sam_out[9].unique()
     print(f"Unique sequences count: {len(unique_seqs)}")
-    occurrence_dict = create_occurrence_dict(unique_seqs, transcript_map_dict, ensembl_obj, sam_out, ensembl_obj_scaffolds)
-    sam_out['occurance'] = sam_out.apply(lambda x: f'KM:i:{occurrence_dict[x[9]]}', axis=1)
-    return sam_out
+    occurrence_dict = create_occurrence_dict(unique_seqs, ensembl_obj, sam_out, ensembl_obj_scaffolds)
+    
+    return occurrence_dict
+
+def getRNAcofoldEnergy(rnaCofoldInFile):
+    rcfOutFileName = os.path.splitext(rnaCofoldInFile)[0] + ".rnacofoldout"
+    outFile = os.path.splitext(rnaCofoldInFile)[0] + "_cofold_out.csv"
+
+    
+    # Run RNAcofold
+    logging.info("Running RNAcofold")
+    command = f'RNAcofold -p0  --output-format=D --jobs=0 --noPS --noconv {rnaCofoldInFile}'
+    logging.info("Command: {}".format(command))
+    
+    with open(outFile, 'w') as rcfOutFile:
+        process = subprocess.Popen(shlex.split(command), stdout=rcfOutFile, stderr=subprocess.PIPE)
+        while True:
+            output = process.stderr.readline().decode()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                logging.info(output.strip())
+        rc = process.poll()
+
+    return outFile
+
+def get_exon_id(pos_in_transcript, transcript):
+    
+    
+    accumulated = 0
+    
+    exons = sorted(transcript.exons, key=lambda x: x.start, reverse=True)
+    
+    if transcript.strand == '-':
+        
+        for exon in exons:
+            
+            if (accumulated + (exon.end - exon.start + 1)) > pos_in_transcript:
+                return exon.exon_id
+            
+            accumulated += (exon.end - exon.start + 1)
+            
+    elif transcript.strand == '+':
+        
+        for exon in reversed(exons):
+            if (accumulated + (exon.end - exon.start + 1)) > pos_in_transcript:
+                return exon.exon_id
+
+            
+            accumulated += (exon.end - exon.start + 1)
 

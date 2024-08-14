@@ -4,11 +4,12 @@ import shlex
 import os
 from Bio.SeqUtils import gc_fraction
 from pyensembl import EnsemblRelease, Genome
-from utils.sequence_analysis import get_kmer_occurances
+from utils.sequence_analysis import get_kmer_occurances, get_chromosomal_positions_per_transcript, get_exon_id
 import logging
 import time
 import configparser 
 import pandas as pd
+from Bio.Seq import Seq
 
 
 # Create a configparser object
@@ -62,12 +63,12 @@ class OligoExtractor:
         self.transcript_lookup = self._get_gene_transcript_mapping(save_to_file=f"transcript_gene_mapping_GRC{self.species[0]}{g_assembly}.csv")
 
     def _kmers(self, s):
-        kmers_list = [s[i:i + self.k] for i in range(len(s) - self.k + 1)]
+        kmers_list = [(s[i:i + self.k], i+1) for i in range(len(s) - self.k + 1)]
         if self.gc_bounds:
-            kmers_list = [seq for seq in kmers_list if self.gc_bounds[0] <= gc_fraction(seq) <= self.gc_bounds[1]]
+            kmers_list = [seq for seq in kmers_list if self.gc_bounds[0] <= gc_fraction(seq[0]) <= self.gc_bounds[1]]
         kmers_set = set(kmers_list)
-        if len(kmers_list) - len(kmers_set) > 0:
-            print(len(kmers_list) - len(kmers_set), "multiple occurences")
+        # if len(kmers_list) - len(kmers_set) > 0:
+        #     print(len(kmers_list) - len(kmers_set), "multiple occurences")
         return kmers_set
 
     def _get_gene_transcript_mapping(self, save_to_file=None):
@@ -115,15 +116,18 @@ class OligoExtractor:
             for row in align_file:
                 if not current_targetSite:
                     current_targetSite = row[9]  # SEQ field in SAM
-                    
+                    current_targetSite_id = row[0]
                 if current_targetSite != row[9]:
                     if current_targetSite == 'AAAGACTCCTAATAGC':
                         print(f"AZD4785: {current_ah_genes}")
                     if len(current_ah_genes) == 0:
 
                         # if len(exon_hits_target_gene) < 2:
-                        self.filtered_kmers.append(current_targetSite)
+                        self.filtered_kmers.append(tuple([current_targetSite_id, current_targetSite]))
+                        
                     current_targetSite = row[9]
+                    current_targetSite_id = row[0]
+
                     current_ah_genes = set()
                     exon_hits_target_gene = set()
 
@@ -161,6 +165,7 @@ class OligoExtractor:
         :return: list of distinct candidate of oligos
         """
 
+            
         logging.info(f"Extract {self.k}mers from gene {self.gene_id}")
 
         transcripts = self.gene.transcripts
@@ -169,28 +174,89 @@ class OligoExtractor:
             # rev_comp_t = Seq(t.sequence).reverse_complement()
             # TODO: make GC content bounds a parameter
             kmers_set = self._kmers(t.sequence)
+            
+            kmers_set = {(tup[0], 
+                          get_chromosomal_positions_per_transcript(t.transcript_id, tup[1], self.ensembl_obj, self.ensembl_obj_scaffolds), 
+                          t.transcript_id,
+                          get_exon_id(tup[1], t)) for tup in kmers_set}
+            
             candidate_oligos.update(kmers_set)
+            
         logging.info(f"{len(candidate_oligos)} candidate {self.k}mers found")
-        seq_count_id = 1
-
+        
+        
+        columns = ['seq', 'chromosomal_position', 'transcripts', 'exons']
+        candidate_oligos = pd.DataFrame(columns=columns, data=candidate_oligos)
+        
+        candidate_oligos = candidate_oligos.groupby(['seq', 'chromosomal_position']).agg({
+            'exons' : lambda x: list(x),
+            'transcripts' : lambda x: list(x),
+        }).reset_index()
+        
+        custom_index = [f'S{str(i).zfill(6)}' for i in range(1, len(candidate_oligos) + 1)]
+        candidate_oligos.index = custom_index
+        
+        candidate_oligos.to_csv(f'{config["DEFAULT"]["DataDir"]}/oligos/{self.gene_id}_{self.k}mer_candidates.csv')
+        
         os.makedirs(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home', exist_ok=True)
+        
         with open(self.bowtie_infile, "w") as tmp_bowtie_in:
-            for can in candidate_oligos:
-                tmp_bowtie_in.write(">S" + str(seq_count_id).zfill(6) + "\n")
-                tmp_bowtie_in.write(str(can) + "\n")
-                seq_count_id += 1
+            candidate_oligos.apply(lambda x: tmp_bowtie_in.write(">" + str(x.name) + "\n" + x['seq'] + "\n"), axis = 1)
+
+        
     
        
     def get_kmer_occurances(self):
         
         sam_out = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home/{self.gene_id}_{self.k}mers.sam', sep="\t", header=None, usecols=list(range(11)))
-        transcript_gene_mapping = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/transcript_gene_mapping_GRC{self.species[0]}{self.g_assembly}.csv', sep=",", header=None)
         
-        sam_out = get_kmer_occurances(sam_out, transcript_gene_mapping, self.ensembl_obj, self.ensembl_obj_scaffolds)
-
-
-        sam_out.to_csv(f'{config["DEFAULT"]["DataDir"]}/bowtie2Home/{self.gene_id}_{self.k}mers.sam', sep='\t', index=False, header=False)
+        occurance_dictionary = get_kmer_occurances(sam_out, self.ensembl_obj, self.ensembl_obj_scaffolds)
+        self.occurance_dictionary = occurance_dictionary
+         
+        return occurance_dictionary       
+    
+    def get_kmer_results(self, cofoldOutFile): 
         
+        logging.info(f"Completing final results")
+
+        cofold_out = pd.read_csv(cofoldOutFile)
+        cofold_out.set_index('seq_id', inplace=True)
+
+        oligo_candidates = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/oligos/{self.gene_id}_{self.k}mer_candidates.csv', index_col=0)
+
+        os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
+        
+        # result csv column names
+        columns = ['seq_num',  
+                   'oligo_reverse_comp', 
+                   'target', 
+                   'absolute_loc', 
+                   'ordered_transcripts', 
+                   'ordered_exons', 
+                    'multiplicity', 
+                   'dG_binding']
+        
+        kmer_indices = [x[0] for x in self.filtered_kmers]
+        res_temp = []
+        
+        for idx in kmer_indices:
+            can = oligo_candidates.loc[idx]
+            res_temp.append((idx,                                             # seq_num
+                             can['seq'],                                      # oligo_reverse_comp
+                             str(Seq(can['seq']).reverse_complement()),       # target
+                             can['chromosomal_position'],                     # absolute_loc
+                             can['transcripts'],                              # ordered_transcripts
+                             can['exons'],                                    # ordered_exons
+                             self.occurance_dictionary.get(can['seq'], 0),  # multiplicity
+                             cofold_out.loc[idx]['dG_binding'])                              # dG_binding
+                            )
+            
+        kmer_results = pd.DataFrame(res_temp, columns=columns)
+        
+        kmer_results.set_index('seq_num', inplace=True)
+        kmer_results.to_csv(f'{config["DEFAULT"]["DataDir"]}/oligos/{self.gene_id}_{self.k}mer_results.csv')
+        
+            
 
     
 

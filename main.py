@@ -3,6 +3,7 @@ import csv
 import argparse
 import sys
 from utils.file_operations import collect_scaffold, build_bowtie_index
+from utils.sequence_analysis import getRNAcofoldEnergy
 import logging
 from src.oligo_extractor import OligoExtractor
 from Bio.Seq import Seq
@@ -118,20 +119,36 @@ if __name__ == '__main__':
         logging.error(f"Error running Bowtie2: {e}")
         sys.exit(1)
     
+
+    try:
+        os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
+        with open(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin", "w") as filteredkmerfile:
+            for x in oligo_obj.filtered_kmers:
+                # First line: '>kmer' (where x[0] is the kmer identifier)
+                filteredkmerfile.write('>' + x[0] + '\n')
+                
+                # Second line: 'kmer&reverse_complement'
+                filteredkmerfile.write(x[1] + '&' + str(Seq(x[1]).reverse_complement()) + '\n')
+            
+        RNAcofoldFile = getRNAcofoldEnergy(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin")
+        
+    except Exception as e:
+        logging.error(f"Error getting binding affinity: {e}")
+        sys.exit(1)
+  
     try:
         oligo_obj.get_kmer_occurances()
     except Exception as e:
         logging.error(f"Error getting kmer occurrences: {e}")
-        sys.exit(1)
-
+        sys.exit(1)    
+      
     try:
-        os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
-        with open(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers_test.csv", "w") as filteredkmerfile:
-            writer = csv.writer(filteredkmerfile)
-            writer.writerows([[str(Seq(x).reverse_complement())] for x in oligo_obj.filtered_kmers])
+        oligo_obj.get_kmer_results(RNAcofoldFile)
     except Exception as e:
         logging.error(f"Error writing kmer results to file: {e}")
         sys.exit(1)
+        
+
 
     logging.info("Pipeline completed successfully.")
 
