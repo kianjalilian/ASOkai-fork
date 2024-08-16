@@ -55,6 +55,7 @@ The Bowtie index of the genome needs to be build prior to using the tool and sho
 ```
 bowtie2-build <path to cache>/pyensembl/GRCh38/ensembl111/Homo_sapiens.GRCh38.cdna.all.fa <bowtie index name>
 ```
+It can also be build with the command line argument `--bowtie2-index`.
 
 The resulting index only contains coding DNA, the transcriptome. For genome, the chromosomes for the specific release should be downloaded from Ensemble, combined in a file and then used in Bowtie2
 

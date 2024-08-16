@@ -100,6 +100,7 @@ if __name__ == '__main__':
     logging.info(args)
     
     try:
+        os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
         oligo_obj = OligoExtractor(args.gene_id, args.ensembl_release, args.genome_assembly, args.species, args.k, bowtie_index, None, scaffold_path)
         oligo_obj.get_candidate_oligos_by_gene()
     except Exception as e:
