@@ -89,7 +89,7 @@ if __name__ == '__main__':
         else:
             raise ValueError("Only mouse and human species implemented.")
     except Exception as e:
-        logging.error(f"Error while setting species and genome assembly: {e}")
+        logging.error(f"Error while collecting scaffold: {e}")
         sys.exit(1)
     logging.info(args)
     
@@ -103,17 +103,35 @@ if __name__ == '__main__':
     
     try:
         build_bowtie_index(args.ensembl_release, args.genome_assembly, args.species, bowtie_index, args.gene_id)
+        build_bowtie_index(args.ensembl_release, args.genome_assembly, args.species, bowtie_index, args.gene_id, gene_only=True)
     except Exception as e:
         logging.error(f"Error building Bowtie2 index: {e}")
         sys.exit(1)
         
     try:
-        oligo_obj.run_bowtie()
+        bowtieOut = oligo_obj.run_bowtie()
     except Exception as e:
         logging.error(f"Error running Bowtie2: {e}")
         sys.exit(1)
+        
+    try:
+        oligo_obj.get_viable_kmers(bowtieOut)
+    except Exception as e:
+        logging.error(f"Error getting viable kmers: {e}")
+        sys.exit(1)
+        
+    try:
+        bowtieLocalOut = oligo_obj.run_bowtie(gene_only=True)
+    except Exception as e:
+        logging.error(f"Error running local Bowtie2: {e}")
+        sys.exit(1)
     
-
+    try:
+        oligo_obj.get_kmer_occurrences(bowtieLocalOut)
+    except Exception as e:
+        logging.error(f"Error getting kmer occurrences: {e}")
+        sys.exit(1)  
+        
     try:
         os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
         with open(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin", "w") as filteredkmerfile:
@@ -130,11 +148,7 @@ if __name__ == '__main__':
         logging.error(f"Error getting binding affinity: {e}")
         sys.exit(1)
   
-    try:
-        oligo_obj.get_kmer_occurrences()
-    except Exception as e:
-        logging.error(f"Error getting kmer occurrences: {e}")
-        sys.exit(1)    
+  
       
     try:
         oligo_obj.store_kmer_results(RNAcofoldFile)

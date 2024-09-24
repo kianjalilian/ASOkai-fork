@@ -61,7 +61,7 @@ def collect_scaffold(genome_assembly, ensembl_release):
         logging.info(f'Using {filename} Scaffold')
     return filepath + filename
 
-def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_id, exclude_gene = False):
+def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_id, gene_only = False):
     """
     Builds a Bowtie2 index for the specified species if it is not already present
     in the data directory using the given Ensembl release and genome assembly.
@@ -71,7 +71,7 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_i
         g_assembly (str): The genome assembly version.
         species (str): The species for which the index is being built. Valid values are 'human' and 'mouse'.
         bowtie_index (str): The name of the Bowtie2 index to be created.
-        exclude_gene (bool): Whether to exclude the target gene from indexing
+        gene_only (bool): Whether to index only the gene
 
     Returns:
         int: The return code from the Bowtie2 index build command. A return code of 0 indicates success.
@@ -82,12 +82,12 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_i
     - The return code of the Bowtie2 index build command.
     """
 
-    def remove_gene(fasta_gz_in, fasta_gz_out, gene_to_remove):
-        """Remove a gene from a .fa.gz file and save the result."""
+    def extract_gene(fasta_gz_in, fasta_gz_out, gene_to_extract):
+        """Extract only a gene from a .fa.gz file and save the result."""
         with gzip.open(fasta_gz_in, "rt") as infile, gzip.open(fasta_gz_out, "wt") as outfile:
             # Filter sequences and write them to the output file
             sequences = SeqIO.parse(infile, "fasta")
-            filtered_sequences = (seq for seq in sequences if gene_to_remove not in seq.id)
+            filtered_sequences = (seq for seq in sequences if gene_to_extract in seq.description)
             SeqIO.write(filtered_sequences, outfile, "fasta")
                 
                 
@@ -95,14 +95,14 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_i
     
     if species == 'human':
         cdna_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCh{g_assembly}/ensembl{e_release}/Homo_sapiens.GRCh{g_assembly}.cdna.all.fa.gz'
-        local_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCh{g_assembly}/ensembl{e_release}/Homo_sapiens.GRCh{g_assembly}.cdna.{gene_id}_excluded.fa.gz'
+        local_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCh{g_assembly}/ensembl{e_release}/Homo_sapiens.GRCh{g_assembly}.cdna.{gene_id}_only.fa.gz'
     elif species == 'mouse':
         cdna_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCm{g_assembly}/ensembl{e_release}/Mus_musculus.GRCm{g_assembly}.cdna.all.fa.gz'
-        local_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCm{g_assembly}/ensembl{e_release}/Mus_musculus.GRCm{g_assembly}.cdna.{gene_id}_excluded.fa.gz'
+        local_file = f'{config["DEFAULT"]["PyEnsemblDataDir"]}/pyensembl/GRCm{g_assembly}/ensembl{e_release}/Mus_musculus.GRCm{g_assembly}.cdna.{gene_id}_only.fa.gz'
 
-    if exclude_gene:
-        bowtie_index_name = bowtie_index_name + '_' + gene_id + '_excluded'
-        remove_gene(cdna_file, local_file, gene_id)
+    if gene_only:
+        bowtie_index_name = bowtie_index_name + '_' + gene_id + '_only'
+        extract_gene(cdna_file, local_file, gene_id)
         
     file_exists = False
     for file in os.listdir(f"{config['DEFAULT']['DataDir']}/bowtie2Home/"):
@@ -112,7 +112,7 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_i
             break
         
     if not file_exists:  # Don't re-download.
-        command = f'bowtie2-build {cdna_file if exclude_gene else local_file} {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index_name} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
+        command = f'bowtie2-build {local_file if gene_only else cdna_file} {config["DEFAULT"]["DataDir"]}/bowtie2Home/{bowtie_index_name} {config["DEFAULT"]["BowtieBuildIndexArg"]}'
     
         logging.info("Command: {}".format(command))
         return_code = subprocess.call(shlex.split(command))
