@@ -6,6 +6,7 @@ import configparser
 import logging
 import gzip
 from Bio import SeqIO
+from Bio.Seq import Seq
 
 
 
@@ -125,3 +126,39 @@ def build_bowtie_index(e_release, g_assembly, species, bowtie_index_name, gene_i
 
 
     return return_code
+
+def build_cofold_in(cofold_in, filtered_kmers):
+    """
+    Build an input file for RNAcofold analysis from filtered k-mers.
+
+    This function creates a file in FASTA-like format suitable for RNAcofold analysis.
+    Each k-mer is written as two lines: a header line with the k-mer identifier, and
+    a sequence line containing the k-mer sequence and its reverse complement.
+
+    Parameters:
+    cofold_in (str): The path to the output file where the RNAcofold input will be written.
+    filtered_kmers (list): A list of tuples, where each tuple contains:
+                           - k-mer identifier (str)
+                           - k-mer sequence (str)
+
+    Returns:
+    None
+
+    Side effects:
+    - Creates the directory for the output file if it doesn't exist.
+    - Writes the formatted k-mer data to the specified output file.
+
+    Example:
+    >>> filtered_kmers = [('S000001', 'ATCG'), ('S000002', 'GCTA')]
+    >>> build_cofold_in('/path/to/cofold_input.txt', filtered_kmers)
+    """
+    directory = os.path.dirname(cofold_in)
+    os.makedirs(directory, exist_ok=True)
+    
+    with open(cofold_in, "w") as filteredkmerfile:
+        for x in filtered_kmers:
+            # First line: '>kmer' (where x[0] is the kmer identifier)
+            filteredkmerfile.write('>' + x[0] + '\n')
+            
+            # Second line: 'kmer&reverse_complement'
+            filteredkmerfile.write(x[1] + '&' + str(Seq(x[1]).reverse_complement()) + '\n')

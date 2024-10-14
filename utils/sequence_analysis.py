@@ -32,6 +32,41 @@ def get_chromosomal_positions_per_transcript(transcript, position_in_transcript,
         str: A string key representing the chromosomal coordinates in the format 
              'contig:start_pos-end_pos:strand', or None if the transcript is not found.
     """
+    
+    def calculate_chromosomal_positions(exon_intervals, pos, strand, k):
+        
+        def return_pos(pos):
+            
+            accumulated = 0
+
+            if strand == '-':
+                
+                for exon in exon_intervals:
+                    if (accumulated + (exon[1] - exon[0] + 1)) > pos:
+                        pos = (exon[1] - (pos - accumulated) + 1)
+                        return pos
+                    
+                    accumulated += (exon[1] - exon[0] + 1)
+                    
+            elif strand == '+':
+                
+                for exon in reversed(exon_intervals):
+                    if (accumulated + (exon[1] - exon[0] + 1)) > pos:
+                        pos = (exon[0] + (pos - accumulated) - 1)
+                        return pos
+                    
+                    accumulated += (exon[1] - exon[0] + 1)
+                
+        
+        exon_intervals = sorted(exon_intervals, key=lambda x: x[0], reverse=True)
+        
+        if strand == '-':
+            return return_pos(pos + k - 1), return_pos(pos)
+                
+        elif strand == '+':
+            return return_pos(pos), return_pos(pos + k - 1)
+        
+        
     transcript_id = transcript.split(".")[0]
 
     try:
@@ -53,30 +88,8 @@ def get_chromosomal_positions_per_transcript(transcript, position_in_transcript,
     key = f'{transcript.contig}:{start_pos}-{end_pos}:{transcript.strand}'
     return key
 
-def calculate_chromosomal_positions(exon_intervals, pos, strand, k):
-    
-    accumulated = 0
-    
-    exon_intervals = sorted(exon_intervals, key=lambda x: x[0], reverse=True)
-    
-    if strand == '-':
-        
-        for exon in exon_intervals:
-            if (accumulated + (exon[1] - exon[0] + 1)) > pos:
-                start_pos = (exon[1] - (pos - accumulated) + 1 - k)
-                return start_pos, start_pos + k
-            
-            accumulated += (exon[1] - exon[0] + 1)
-            
-    elif strand == '+':
-        
-        for exon in reversed(exon_intervals):
-            if (accumulated + (exon[1] - exon[0] + 1)) > pos:
-                start_pos = (exon[0] + (pos - accumulated) - 1)
-                return start_pos, start_pos + k
-            
-            accumulated += (exon[1] - exon[0] + 1)
 
+            
 def getRNAcofoldEnergy(rnaCofoldInFile):
     """
     Run RNAcofold to calculate RNA secondary structure energies and save the results to a CSV file.

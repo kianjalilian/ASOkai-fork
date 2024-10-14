@@ -2,7 +2,7 @@
 import csv
 import argparse
 import sys
-from utils.file_operations import collect_scaffold, build_bowtie_index
+from utils.file_operations import collect_scaffold, build_bowtie_index, build_cofold_in
 from utils.sequence_analysis import getRNAcofoldEnergy
 import logging
 from src.oligo_extractor import OligoExtractor
@@ -92,6 +92,7 @@ if __name__ == '__main__':
         logging.error(f"Error while collecting scaffold: {e}")
         sys.exit(1)
     logging.info(args)
+
     
     try:
         os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
@@ -121,27 +122,22 @@ if __name__ == '__main__':
         sys.exit(1)
         
     try:
-        bowtieLocalOut = oligo_obj.run_bowtie(gene_only=True)
+        oligo_obj.extract_prone_multiplicity()
     except Exception as e:
-        logging.error(f"Error running local Bowtie2: {e}")
+        logging.error(f"Error extracting prone multiplicity: {e}")
         sys.exit(1)
     
     try:
-        oligo_obj.get_kmer_occurrences(bowtieLocalOut)
+        oligo_obj.extract_non_prone_multiplicity()
     except Exception as e:
-        logging.error(f"Error getting kmer occurrences: {e}")
-        sys.exit(1)  
+        logging.error(f"Error extracting non-prone multiplicity: {e}")
+        sys.exit(1)
+
         
     try:
-        os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
-        with open(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin", "w") as filteredkmerfile:
-            for x in oligo_obj.filtered_kmers:
-                # First line: '>kmer' (where x[0] is the kmer identifier)
-                filteredkmerfile.write('>' + x[0] + '\n')
-                
-                # Second line: 'kmer&reverse_complement'
-                filteredkmerfile.write(x[1] + '&' + str(Seq(x[1]).reverse_complement()) + '\n')
-            
+        cofold_in = f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin"
+        
+        build_cofold_in(cofold_in, oligo_obj.filtered_kmers)   
         RNAcofoldFile = getRNAcofoldEnergy(f"{config['DEFAULT']['DataDir']}/oligos/{bowtie_index}_{args.gene_id}_filtered_{args.k}mers.rnacofoldin")
         
     except Exception as e:

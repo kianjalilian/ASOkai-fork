@@ -167,3 +167,4 @@ Alignment-Files.ipynb
 myenv
 submit_job.sh
 slurm*
+src/oligo_extractor copy.py
