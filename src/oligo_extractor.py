@@ -281,7 +281,7 @@ class OligoExtractor:
         """
         Extract prone multiplicity for each k-mer by running Bowtie2 on the local gene region.
         """
-        outFile = self.run_bowtie(local_gene_only=True, flank = 'middle') 
+        outFile = self.run_bowtie(local_gene_only=True) 
         
         def calculate_occurrences(group):
             
