@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
-import csv
 import argparse
 import sys
 from utils.file_operations import collect_scaffold, build_bowtie_index, build_cofold_in
 from utils.sequence_analysis import get_rna_cofold_energy
 import logging
 from src.oligo_extractor import OligoExtractor
-from Bio.Seq import Seq
 import configparser
 import os
 
@@ -29,12 +27,12 @@ if __name__ == '__main__':
         os.environ['PYENSEMBL_CACHE_DIR'] = F'{config["DEFAULT"]["PyEnsemblDataDir"]}'
         os.environ['BOWTIE2_INDEXES '] = F'{config["DEFAULT"]["DataDir"]}/bowtie2Home'
     except KeyError as e:
-        logging.error(f"Missing configuration parameter: {e}")
+        logging.error(f"Missing configuration parameters: {e}")
         sys.exit(1)
 
 
     parser = argparse.ArgumentParser(
-        description="Run the ASO thermodynamics pipeline to retrieve the ddG landscape for "
+        description="Run the ASO thermodynamics pipeline to retrieve the ddG landscape for " # TODO
                     "selective oligos by the Ensemble gene ID of interest"
     )
 
@@ -65,8 +63,8 @@ if __name__ == '__main__':
     parser.add_argument(
         "--ensembl-release", "-e",
         type=int,
-        default=111,
-        help="Ensemble release, default=111"
+        default=113,
+        help="Ensemble release, default=113"
     )
 
     args = parser.parse_args()
@@ -91,8 +89,6 @@ if __name__ == '__main__':
     except Exception as e:
         logging.error(f"Error while collecting scaffold: {e}")
         sys.exit(1)
-    logging.info(args)
-
     
     try:
         os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)

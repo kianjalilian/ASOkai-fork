@@ -7,6 +7,9 @@ import logging
 import gzip
 from Bio import SeqIO
 from Bio.Seq import Seq
+from gget import ref
+import requests
+
 
 
 
@@ -16,7 +19,45 @@ config = configparser.ConfigParser()
 # Read the configuration file
 config.read('config.ini')
 
+def collect_reference(genome_assembly, ensembl_release, species):
+    """
+    Collect reference genome. (Not Used)
+    """
+    ref_urls = ref(species = species, 
+                   which = ['gtf', 'cdna', 'ncrna', 'pep'],
+                   release=ensembl_release,
+                   ftp=True)
+    dir_path = f"{config['DEFAULT']['PyEnsemblDataDir']}/pyensembl/GRC{species[0]}{genome_assembly}/ensembl{ensembl_release}"
+    os.makedirs(dir_path, exist_ok=True)
 
+    # Loop over each reference type for the specified species
+    for url in ref_urls:
+        # Retrieve the URL and construct the file path
+        
+        file_name = os.path.basename(url)
+        print(file_name)
+        file_path = os.path.join(dir_path, file_name)
+        
+        # Check if the file already exists
+        if os.path.exists(file_path):
+            logging.info(f"{file_name} already exists. Skipping download.")
+            continue
+        
+        logging.info(f"Downloading {file_name}...")
+
+        # Download the file
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(file_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            logging.info(f"{file_name} saved to {file_path}")
+        else:
+            raise ValueError
+    
+    logging.info("All downloads completed.")
+    
+    
 def collect_scaffold(genome_assembly, ensembl_release):
     """
     Download the specified human scaffold file from Ensembl if it is not already present

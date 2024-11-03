@@ -13,7 +13,7 @@ import configparser
 import pandas as pd
 from Bio.Seq import Seq
 import polars as pl
-
+from gget import ref
 
 # Create a configparser object
 config = configparser.ConfigParser()
@@ -57,6 +57,7 @@ class OligoExtractor:
         self.gene_id = gene_id
         self.k = k
         self.g_assembly =  g_assembly
+        self.e_release = e_release
         self.gene_kmers = []
         self.filtered_kmers = []
         self.multiplicity_layout = [int(x) for x in config["DEFAULT"]["MultiplicityLayout"].split(',')]
@@ -74,7 +75,15 @@ class OligoExtractor:
         else:
             raise ValueError("Only mouse or human species implemented.")
         
-        self.ensembl_obj = EnsemblRelease(release=e_release, species=self.species)
+        self.ensembl_obj =  Genome(
+                reference_name=f'GRC{self.species[0]}{self.g_assembly}',
+                annotation_name="ensembl",
+                annotation_version=self.e_release,
+                gtf_path_or_url=ref(species=self.species, which=['gtf'], release=self.e_release, ftp=True)[0],
+                transcript_fasta_paths_or_urls=ref(species=self.species, which=['cdna'], release=self.e_release, ftp=True)[0],
+                protein_fasta_paths_or_urls=ref(species=self.species, which=['pep'], release=self.e_release, ftp=True)[0],
+            )
+        
         self.ensembl_obj.download()
         self.ensembl_obj.index()
         self.scaffold_path = scaffold_path
