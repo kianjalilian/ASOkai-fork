@@ -14,6 +14,8 @@ import pandas as pd
 from Bio.Seq import Seq
 import polars as pl
 from gget import ref
+import ast
+
 
 # Create a configparser object
 config = configparser.ConfigParser()
@@ -144,6 +146,7 @@ class OligoExtractor:
         if self.scaffold_path:
             transcripts.extend(self.ensembl_obj_scaffolds.transcripts())
 
+        
         if save_to_file:
             file = open(f"{config['DEFAULT']['DataDir']}/{save_to_file}", "w")
         for t in transcripts:
@@ -263,9 +266,9 @@ class OligoExtractor:
         Parameters:
             in_file (str): Path to the input SAM file from Bowtie2 alignment.
         """
-        columns = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ", "QUAL", "ALIGN SCORE", "XS", "XN", "XM", "XO", "XG", "EDIT DIST REF", "MISMATCH POS", "YT"]
+        columns = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ"]
 
-        align_file = pl.read_csv(in_file ,separator='\t', has_header=False, new_columns=columns)
+        align_file = pl.read_csv(in_file ,separator='\t', has_header=False, columns=range(10),new_columns=columns, truncate_ragged_lines=True)
         
         res = (align_file
                .group_by('SEQ')
@@ -364,7 +367,8 @@ class OligoExtractor:
         cofold_out_repeated.set_index('seq_id', inplace=True)
         
 
-        oligo_candidates = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/oligos/{self.gene_id}_{self.k}mer_candidates.csv', index_col=0)
+        oligo_candidates = pd.read_csv(f'{config["DEFAULT"]["DataDir"]}/oligos/{self.gene_id}_{self.k}mer_candidates.csv', index_col=0, 
+                                       converters={'exons':ast.literal_eval,'transcripts':ast.literal_eval})
 
         os.makedirs(f"{config['DEFAULT']['DataDir']}/oligos", exist_ok=True)
         
@@ -379,8 +383,10 @@ class OligoExtractor:
                    'repeated_target_site_multiplicity', 
                    'non_prone_multiplicity', 
                    'dG_binding',
+                   'transcript_prevalence_ratio',
                    'ordered_transcripts', 
                    'ordered_exons',
+                   'ensembl_link'
                    ]
         
         kmer_indices = [x[0] for x in self.filtered_kmers]
@@ -395,19 +401,22 @@ class OligoExtractor:
             drop_indices = repeated_cans[(repeated_cans.dG_binding - cofold_out.loc[idx, 'dG_binding']) <= float(config['DEFAULT']['maxddG'])].index.tolist()
             repeated_cans.drop(index=drop_indices, inplace=True)
 
+            ensembl_link = f"https://www.ensembl.org/{self.species}/Location/View?r={can['chromosomal_position'].rstrip(':+-')}"
             
-            res_temp.append((idx,                                             # seq_num
-                             can['seq'],                                      # target
-                             can['chromosomal_position'],                     # absolute_loc
-                             str(Seq(can['seq']).reverse_complement()),       # oligo_reverse_comp
-                             get_gc_content(can['seq']),                      # oligo_gc_content
-                             longest_at_run(can['seq']),                      # oligo_longest_at_run
-                             longest_t_run(can['seq']),                       # oligo_longest_t_run
-                             len(repeated_cans),                             # repeated_target_site_multiplicity
-                             self.non_prone_multiplicity.get(idx, 0),         # non_prone_multiplicity
-                             cofold_out.loc[idx]['dG_binding'],               # dG_binding
-                             can['transcripts'],                              # ordered_transcripts
-                             can['exons'],                                    # ordered_exons
+            res_temp.append((idx,                                               # seq_num
+                             can['seq'],                                        # target
+                             can['chromosomal_position'],                       # absolute_loc
+                             str(Seq(can['seq']).reverse_complement()),         # oligo_reverse_comp
+                             get_gc_content(can['seq']),                        # oligo_gc_content
+                             longest_at_run(can['seq']),                        # oligo_longest_at_run
+                             longest_t_run(can['seq']),                         # oligo_longest_t_run
+                             len(repeated_cans),                                # repeated_target_site_multiplicity
+                             self.non_prone_multiplicity.get(idx, 0),           # non_prone_multiplicity
+                             cofold_out.loc[idx]['dG_binding'],                 # dG_binding
+                             len(can['transcripts'])/len(self.gene.transcripts),# transcript_prevalence_ratio
+                             can['transcripts'],                                # ordered_transcripts
+                             can['exons'],                                      # ordered_exons
+                             ensembl_link,                                      # ensembl_link
                              )                                   
                             )
             
