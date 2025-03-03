@@ -7,9 +7,9 @@ from typing import Optional, Tuple, Any, List
 def get_chromosomal_positions_per_transcript(
     transcript: str,
     position_in_transcript: int,
-    ensembl_obj: Any,
+    genome: Any,
     k: int,
-    ensembl_obj_scaffolds: Optional[Any] = None
+    genome_scaffolds: Optional[Any] = None
 ) -> Optional[str]:
     """
     Retrieve the absolute chromosomal coordinates corresponding to a specific relative position within a transcript.
@@ -21,9 +21,9 @@ def get_chromosomal_positions_per_transcript(
     Parameters:
         transcript (str): The Ensembl transcript ID.
         position_in_transcript (int): The 1-based position within the transcript.
-        ensembl_obj (Any): The main EnsemblRelease object for querying transcript data.
+        genome (Any): The main EnsemblRelease object for querying transcript data.
         k (int): The window length for coordinate calculation.
-        ensembl_obj_scaffolds (Optional[Any]): Optional Genome object for scaffold annotations.
+        genome_scaffolds (Optional[Any]): Optional Genome object for scaffold annotations.
 
     Returns:
         Optional[str]: A string key in the format 'contig:start_pos-end_pos:strand', or None if the transcript is not found.
@@ -58,12 +58,12 @@ def get_chromosomal_positions_per_transcript(
 
     transcript_id = transcript.split(".")[0]
     try:
-        transcript_obj = ensembl_obj.transcript_by_id(transcript_id=transcript_id)
+        transcript_obj = genome.transcript_by_id(transcript_id=transcript_id)
     except Exception as e:
         logging.warning(f"Main lookup failed for transcript {transcript_id}: {e}")
-        if ensembl_obj_scaffolds:
+        if genome_scaffolds:
             try:
-                transcript_obj = ensembl_obj_scaffolds.transcript_by_id(transcript_id=transcript_id)
+                transcript_obj = genome_scaffolds.transcript_by_id(transcript_id=transcript_id)
             except Exception as e2:
                 logging.warning(f"Scaffold lookup failed for transcript {transcript_id}: {e2}")
                 return None
@@ -83,9 +83,9 @@ def get_chromosomal_positions_per_transcript(
 def get_seq_by_transcript_position(
     transcript: str,
     position_in_transcript: int,
-    ensembl_obj: Any,
+    genome: Any,
     k: int,
-    ensembl_obj_scaffolds: Optional[Any] = None
+    genome_scaffolds: Optional[Any] = None
 ) -> Optional[str]:
     """
     Retrieve a subsequence of length k from a transcript, starting at a specified 1-based position.
@@ -93,21 +93,21 @@ def get_seq_by_transcript_position(
     Parameters:
         transcript (str): The Ensembl transcript ID.
         position_in_transcript (int): 1-based starting position within the transcript.
-        ensembl_obj (Any): The main EnsemblRelease object.
+        genome (Any): The main EnsemblRelease object.
         k (int): The length of the subsequence.
-        ensembl_obj_scaffolds (Optional[Any]): Optional Genome object for scaffold annotations.
+        genome_scaffolds (Optional[Any]): Optional Genome object for scaffold annotations.
 
     Returns:
         Optional[str]: The subsequence of length k, or None if the transcript is not found or indexes are out-of-bound.
     """
     transcript_id = transcript.split(".")[0]
     try:
-        transcript_obj = ensembl_obj.transcript_by_id(transcript_id=transcript_id)
+        transcript_obj = genome.transcript_by_id(transcript_id=transcript_id)
     except Exception as e:
         logging.warning(f"Main lookup failed for transcript {transcript_id}: {e}")
-        if ensembl_obj_scaffolds:
+        if genome_scaffolds:
             try:
-                transcript_obj = ensembl_obj_scaffolds.transcript_by_id(transcript_id=transcript_id)
+                transcript_obj = genome_scaffolds.transcript_by_id(transcript_id=transcript_id)
             except Exception as e2:
                 logging.warning(f"Scaffold lookup failed for transcript {transcript_id}: {e2}")
                 return None
@@ -180,23 +180,6 @@ def get_exon_id(pos_in_transcript: int, transcript: Any) -> Optional[str]:
             accumulated += exon_length
     return None
 
-
-def get_gc_content(seq: str) -> float:
-    """
-    Calculate the GC content of a nucleotide sequence.
-
-    Parameters:
-        seq (str): The nucleotide sequence.
-
-    Returns:
-        float: The proportion of nucleotides that are G or C.
-    """
-    seq = seq.upper()
-    if not seq:
-        return 0.0
-    g_count = seq.count('G')
-    c_count = seq.count('C')
-    return (g_count + c_count) / len(seq)
 
 
 def longest_at_run(seq: str) -> float:

@@ -8,7 +8,6 @@ from utils.sequence_analysis import (
     get_chromosomal_positions_per_transcript,
     get_seq_by_transcript_position,
     get_exon_id,
-    get_gc_content,
     longest_at_run,
     longest_t_run
 )
@@ -46,8 +45,8 @@ class OligoExtractor:
         multiplicity_layout (list): A list of integers specifying the layout for multiplicity calculation.
         repeated_sites (dict): A dictionary to store repeated sites for each k-mer.
         non_prone_multiplicity (dict): A dictionary to store non-prone multiplicity for each k-mer.
-        ensembl_obj (Genome): An instance of EnsemblRelease for querying gene and transcript data.
-        ensembl_obj_scaffolds (Genome, optional): An optional Genome object for scaffold annotations.
+        genome (Genome): An instance of EnsemblRelease genome for querying gene and transcript data.
+        genome_scaffolds (Genome, optional): An optional Genome object for scaffold annotations.
         gene (Gene): The Gene object representing the target gene.
         transcript_gene_lookup (dict): A dictionary mapping transcript IDs to gene IDs.
     """
@@ -76,7 +75,7 @@ class OligoExtractor:
         else:
             raise ValueError("Only mouse or human species implemented.")
         
-        self.ensembl_obj: Genome = Genome(
+        self.genome: Genome = Genome(
             reference_name=f'GRC{self.species[0]}{self.g_assembly}',
             annotation_name="ensembl",
             annotation_version=self.e_release,
@@ -85,24 +84,24 @@ class OligoExtractor:
             protein_fasta_paths_or_urls=ref(species=self.species, which=['pep'], release=self.e_release, ftp=True)[0],
         )
         
-        self.ensembl_obj.download()
-        self.ensembl_obj.index()
+        self.genome.download()
+        self.genome.index()
         self.scaffold_path: Optional[str] = scaffold_path
 
 
         if scaffold_path:
-            self.ensembl_obj_scaffolds: Optional[Genome] = Genome(
+            self.genome_scaffolds: Optional[Genome] = Genome(
                 reference_name=f'GRCh{g_assembly}',
                 annotation_name='scaffolds',
                 gtf_path_or_url=scaffold_path,
             )
-            self.ensembl_obj_scaffolds.download()
-            self.ensembl_obj_scaffolds.index()
+            self.genome_scaffolds.download()
+            self.genome_scaffolds.index()
         else:
-            self.ensembl_obj_scaffolds = None
+            self.genome_scaffolds = None
         
 
-        self.gene = self.ensembl_obj.gene_by_id(gene_id=gene_id)
+        self.gene = self.genome.gene_by_id(gene_id=gene_id)
         
         logging.info(f"Gene name: {self.gene.gene_name}")
         logging.info("Building transcript gene references. This may take a while...")
@@ -134,9 +133,9 @@ class OligoExtractor:
         """
         # TODO: might be extended to exon mapping
         transcript_lookup: Dict[str, str] = {}
-        transcripts = self.ensembl_obj.transcripts()
-        if self.scaffold_path and self.ensembl_obj_scaffolds:
-            transcripts.extend(self.ensembl_obj_scaffolds.transcripts())
+        transcripts = self.genome.transcripts()
+        if self.scaffold_path and self.genome_scaffolds:
+            transcripts.extend(self.genome_scaffolds.transcripts())
 
         for t in transcripts:
             if t.transcript_id not in transcript_lookup:
@@ -184,7 +183,7 @@ class OligoExtractor:
                 (
                     tup[0],
                     get_chromosomal_positions_per_transcript(
-                        t.transcript_id, tup[1], self.ensembl_obj, self.k, self.ensembl_obj_scaffolds
+                        t.transcript_id, tup[1], self.genome, self.k, self.genome_scaffolds
                     ),
                     t.transcript_id,
                     get_exon_id(tup[1], t)
@@ -304,17 +303,17 @@ class OligoExtractor:
                                             get_chromosomal_positions_per_transcript(
                                                 row['RNAME'], 
                                                 row['POS'] - self.multiplicity_layout[0], 
-                                                self.ensembl_obj, 
+                                                self.genome, 
                                                 self.k, 
-                                                self.ensembl_obj_scaffolds
+                                                self.genome_scaffolds
                                             )
                                         ),
                                         'seq': get_seq_by_transcript_position(
                                             row['RNAME'], 
                                             row['POS'] - self.multiplicity_layout[0], 
-                                            self.ensembl_obj, 
+                                            self.genome, 
                                             self.k, 
-                                            self.ensembl_obj_scaffolds
+                                            self.genome_scaffolds
                                         )
                                         }, 
                                 axis=1)
@@ -424,7 +423,7 @@ class OligoExtractor:
                              can['seq'],                                        # target
                              can['chromosomal_position'],                       # absolute_loc
                              str(Seq(can['seq']).reverse_complement()),         # oligo_reverse_comp
-                             get_gc_content(can['seq']),                        # oligo_gc_content
+                             gc_fraction(can['seq']),                           # oligo_gc_content
                              longest_at_run(can['seq']),                        # oligo_longest_at_run
                              longest_t_run(can['seq']),                         # oligo_longest_t_run
                              len(repeated_cans),                                # repeated_target_site_multiplicity

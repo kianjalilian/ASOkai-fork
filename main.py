@@ -117,7 +117,7 @@ def main():
     except Exception as e:
         logging.error(f"Error building Bowtie2 transcriptome index: {e}")
     
-        
+    # Run Bowtie2 for pre-filtering viable oligos
     try:
         bowtie_out = oligo_obj.run_bowtie(bowtie_infile, 
                                          config['Bowtie2Dir'], 
@@ -127,6 +127,7 @@ def main():
         logging.error(f"Error running Bowtie2: {e}")
         sys.exit(1)
         
+    # Extract viable kmers based on Bowtie output
     try:
         oligo_obj.extract_viable_kmers(bowtie_out)
     except Exception as e:
