@@ -6,9 +6,9 @@ from utils.file_operations import (
     build_bowtie_index, 
     build_RNAcofold_in, 
     build_RNAduplex_in,
-    run_bowtie
+    run_bowtie,
+    run_RNAcofold,
     )
-from utils.sequence_analysis import get_rna_cofold_energy
 import logging
 from src.oligo_extractor import OligoExtractor
 import configparser
@@ -154,7 +154,7 @@ def main():
                     f"_filtered_{config['OligoLen']}mers.rnacofoldin"
                     
         build_RNAcofold_in(cofold_in, oligo_obj.filtered_kmers)   
-        cofold_out = get_rna_cofold_energy(cofold_in, " -P "+ config["CofoldParamFile"])
+        cofold_out = run_RNAcofold(cofold_in, " -P "+ config["CofoldParamFile"])
         
     except Exception as e:
         logging.error(f"Error getting binding affinity: {e}")
@@ -199,7 +199,7 @@ def main():
             f"{int(config['OligoLen'])}mers.rnacofoldin"
         )
         build_RNAcofold_in(cofold_in_repeated, oligo_obj.filtered_kmers, oligo_obj.repeated_sites)
-        cofold_out_repeated = get_rna_cofold_energy(cofold_in_repeated, " -P "+config["CofoldParamFile"])
+        cofold_out_repeated = run_RNAcofold(cofold_in_repeated, " -P "+config["CofoldParamFile"])
     except Exception as exc:
         logging.error("Error getting binding affinity for repeated target sites: %s", exc)
         sys.exit(1)

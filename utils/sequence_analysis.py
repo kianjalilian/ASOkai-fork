@@ -122,35 +122,6 @@ def get_seq_by_transcript_position(
     return transcript_obj.sequence[idx:idx + k]
 
 
-def get_rna_cofold_energy(rnaCofoldInFile: str, paramFile: str) -> str:
-    """
-    Run RNAcofold to calculate RNA secondary structure energies and save the results to a CSV file.
-
-    Parameters:
-        rnaCofoldInFile (str): Path to the RNA sequences input file for RNAcofold.
-        paramFile (str): Parameter file for RNAcofold.
-
-    Returns:
-        str: The path to the output CSV file containing RNAcofold results.
-    """
-    outFile = os.path.splitext(rnaCofoldInFile)[0] + "_cofold_out.csv"
-    logging.info("Running RNAcofold")
-    command = f'RNAcofold -p0 --output-format=D --jobs=0 --noPS --noconv {rnaCofoldInFile} {paramFile}'
-    logging.info(f"Command: {command}")
-
-    with open(outFile, 'w') as rcfOutFile:
-        process = subprocess.Popen(
-            shlex.split(command), stdout=rcfOutFile, stderr=subprocess.PIPE, text=True
-        )
-        while True:
-            output = process.stderr.readline()
-            if output == '' and process.poll() is not None:
-                break
-            if output:
-                logging.info(output.strip())
-        process.wait()
-    return outFile
-
 
 def get_exon_id(pos_in_transcript: int, transcript: Any) -> Optional[str]:
     """
