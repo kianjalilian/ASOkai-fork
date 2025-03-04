@@ -174,3 +174,4 @@ input_file
 genmap/*
 genmap-index/*
 genmap-build/*
+*.bed

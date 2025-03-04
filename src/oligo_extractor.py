@@ -143,24 +143,6 @@ class OligoExtractor:
                 
         return transcript_lookup
 
-    def _run_command(self, command: str) -> int:
-        """
-        Execute a shell command and return the exit code.
-
-        Parameters:
-            command (str): The shell command to execute.
-
-        Returns:
-            int: The exit code of the executed command.
-        """
-        try:
-            result = subprocess.run(shlex.split(command), check=True, capture_output=True, text=True)
-            logging.info(f"Command Output: {result.stdout}")
-            return result.returncode
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Command '{command}' failed with error: {e.stderr}")
-            return e.returncode
-
 
     def extract_candidate_oligos_by_gene(self, outfile: str) -> None:
         """
@@ -215,41 +197,6 @@ class OligoExtractor:
         with open(outfile, "w") as tmp_bowtie_in:
             candidate_df.apply(lambda x: tmp_bowtie_in.write(f">{x.name}\n{x['seq']}\n"), axis=1)
             
-            
-    def run_bowtie(self, infile: str, bowtie_dir: str, bowtie_args: str, gene_only: bool = False) -> str:
-        """
-        Execute Bowtie2 alignment for the k-mers.
-
-        Parameters:
-            gene_only (bool): If True, aligns only to the local gene region.
-
-        Returns:
-            str: The path to the output SAM file.
-        """
-                
-        logging.info("Running Bowtie2")
-        
-        start = time.time()
-        
-        if gene_only:    
-            out_file = os.path.splitext(infile)[0] + '_gene_only_middle.sam'
-            trim = f" --trim3 {int(self.multiplicity_layout[2])} --trim5 {int(self.multiplicity_layout[0])}"
-            command = (f'bowtie2 -x {bowtie_dir}/bowtie2Home/{self.bowtie_index}_{self.gene_id}_only '
-                       f'-U {infile} -S {out_file} {bowtie_args}{trim}')
-            
-        else:
-            out_file = os.path.splitext(infile)[0] + ".sam"
-            command = f'bowtie2 -x {bowtie_dir}/bowtie2Home/{self.bowtie_index} -U {infile} -S {out_file} {bowtie_args}'
-            
-        logging.info(f"Command: {command}")
-        return_code = self._run_command(command)
-        logging.info(f"Return Code: {return_code}")
-        
-        elapsed = time.time() - start
-
-        logging.info(f"Bowtie Processing time: {elapsed:.2f} seconds")
-        
-        return out_file
 
 
     def extract_viable_kmers(self, in_file: str) -> None: # TODO: Add option to not filter
@@ -440,4 +387,4 @@ class OligoExtractor:
         kmer_results = pd.DataFrame(res_temp, columns=columns)
         
         kmer_results.set_index('seq_num', inplace=True)
-        kmer_results.to_csv(f'{self.oligo_dir}/oligos/{self.gene_id}_{self.k}mer_results.csv')
+        kmer_results.to_csv(f'{self.oligo_dir}/results/{self.gene_id}_{self.k}mer_results.csv')

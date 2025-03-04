@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
 import argparse
 import sys
-from utils.file_operations import collect_scaffold, build_bowtie_index, build_RNAcofold_in, build_RNAduplex_in
+from utils.file_operations import (
+    collect_scaffold, 
+    build_bowtie_index, 
+    build_RNAcofold_in, 
+    build_RNAduplex_in,
+    run_bowtie
+    )
 from utils.sequence_analysis import get_rna_cofold_energy
 import logging
 from src.oligo_extractor import OligoExtractor
@@ -49,10 +55,11 @@ def get_scaffold_and_index(config):
         sys.exit(1)
     return scaffold_path, bowtie_index
 
-def create_directories(config):
+def create_directories(config, bowtie_index):
     try:
         os.makedirs(f"{config['OligoDir']}/oligos", exist_ok=True)
-        os.makedirs(f"{config['Bowtie2Dir']}/bowtie2Home", exist_ok=True)
+        os.makedirs(f"{config['OligoDir']}/results", exist_ok=True)
+        os.makedirs(f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}", exist_ok=True)
     except Exception as e:
         logging.error(f"Error creating directories: {e}")
         sys.exit(1)
@@ -79,7 +86,7 @@ def main():
     config = read_config(args_set)
     set_environment_variables(config)
     scaffold_path, bowtie_index = get_scaffold_and_index(config)
-    create_directories(config)
+    create_directories(config, bowtie_index)
 
     try:
         oligo_obj = OligoExtractor(str(config["TargetGene"]), 
@@ -118,15 +125,11 @@ def main():
         logging.error(f"Error building Bowtie2 transcriptome index: {e}")
     
     # Run Bowtie2 for pre-filtering viable oligos
-    try:
-        bowtie_out = oligo_obj.run_bowtie(bowtie_infile, 
-                                         config['Bowtie2Dir'], 
-                                         config["BowtieArgs"])
+    bowtie_index_dir = f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}"
+    bowtie_out = run_bowtie(bowtie_infile, 
+                            bowtie_index_dir,
+                            config["BowtieArgs"])
 
-    except Exception as e:
-        logging.error(f"Error running Bowtie2: {e}")
-        sys.exit(1)
-        
     # Extract viable kmers based on Bowtie output
     try:
         oligo_obj.extract_viable_kmers(bowtie_out)
@@ -135,15 +138,15 @@ def main():
         sys.exit(1)
 
     # NOTE: The following code is not listed
-    try:
-        duplex_in = f"{config['OligoDir']}/oligos/{bowtie_index}_{config['TargetGene']}" + \
-                    f"_filtered_{config['OligoLen']}mers.rnaduplexin"
+    # try:
+    #     duplex_in = f"{config['OligoDir']}/oligos/{bowtie_index}_{config['TargetGene']}" + \
+    #                 f"_filtered_{config['OligoLen']}mers.rnaduplexin"
                     
-        build_RNAduplex_in(duplex_in, oligo_obj.filtered_kmers, oligo_obj.filtered_kmers)   
-        logging.info(f"Built RNAduplex {duplex_in}")
-    except Exception as e:
-        logging.error(f"Error getting binding affinity: {e}")
-        sys.exit(1)
+    #     build_RNAduplex_in(duplex_in, oligo_obj.filtered_kmers, oligo_obj.filtered_kmers)   
+    #     logging.info(f"Built RNAduplex {duplex_in}")
+    # except Exception as e:
+    #     logging.error(f"Error getting binding affinity: {e}")
+    #     sys.exit(1)
     
     
     try:
@@ -171,16 +174,21 @@ def main():
         
         
     try:      
-        bowtie_out_gene_gnly = oligo_obj.run_bowtie(bowtie_infile, 
-                                config['Bowtie2Dir'], 
-                                config["BowtieArgs"], gene_only=True)
+        bowtie_index_dir = f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}"
+        bowtie_out_gene_only = run_bowtie(bowtie_infile, 
+                                          bowtie_index_dir,
+                                          config["BowtieArgs"],
+                                          gene_only=True,
+                                          gene_id=oligo_obj.gene_id,
+                                          multiplicity_layout=oligo_obj.multiplicity_layout)
+        
     except Exception as e:
         logging.error(f"Error running Bowtie2 for target gene: {e}")
         sys.exit(1)
         
 
     try:
-        oligo_obj.extract_repeated_sites(bowtie_out_gene_gnly)
+        oligo_obj.extract_repeated_sites(bowtie_out_gene_only)
     except Exception as e:
         logging.error(f"Error extracting repeated sites: {e}")
         sys.exit(1)
