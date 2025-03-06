@@ -123,7 +123,13 @@ def build_bowtie_index(e_release: int, g_assembly: int, species: str, bowtie_ind
         logging.error(msg)
         raise ValueError(msg)
 
-    logging.info("Running Bowtie2 index build")
+    # Build dynamic log message based on parameters
+    log_msg = f"building bowtie index for {bowtie_index}"
+    if tsl:
+        log_msg += f" with tsl active, tsl_list={tsl_list}"
+    if gene_only:
+        log_msg += f" and gene_only active, gene_id={gene_id}"
+    logging.info(log_msg)
     
     base_pyensembl = config["DEFAULT"]["PyEnsemblDataDir"]
     if species == 'human':
@@ -136,7 +142,7 @@ def build_bowtie_index(e_release: int, g_assembly: int, species: str, bowtie_ind
                                  f"Mus_musculus.GRCm{g_assembly}.cdna.all.fa.gz")
 
     if gene_only:
-        input_file = f"{os.path.splitext(input_file)[0]}_{gene_id}_only.cdna.all.fa.gz"
+        input_file = f"{os.path.splitext(input_file)[0]}.cdna._{gene_id}_only.fa.gz"
         bowtie_index_base = f"{bowtie_index}_{gene_id}_only"
         extract_gene(input_file, input_file, gene_id)
     elif tsl:
@@ -169,6 +175,7 @@ def build_bowtie_index(e_release: int, g_assembly: int, species: str, bowtie_ind
         logging.info("Executing command: %s", command)
         try:
             result = subprocess.run(shlex.split(command), check=True, capture_output=True, text=True)
+            logging.info("Bowtie2 index build completed.")
             return result.returncode
         except subprocess.CalledProcessError as e:
             logging.error("bowtie2-build failed: %s", e.stderr)
@@ -289,53 +296,57 @@ def build_RNAcofold_in(cofold_in: str, kmers: List[Tuple[str, str]],
                 filtered_kmer_file.write(f"{seq}&{str(Seq(seq).reverse_complement())}\n")
                 
                 
-def build_RNAduplex_in(duplex_in: str, kmers: List[Tuple[str, str]], 
-                       targets: List[Tuple[str, str]]) -> None:
-    """
-    Builds an input file for RNAduplex analysis from filtered k-mers.
+# def build_RNAduplex_in(duplex_in: str, kmers: List[Tuple[str, str]], 
+#                        targets: List[Tuple[str, str]]) -> None:
+#     """
+#     Builds an input file for RNAduplex analysis from filtered k-mers.
     
-    Parameters:
-        duplex_in (str): Path to the output file for RNAduplex input.
-        kmers (List[Tuple[str, str]]): List of tuples containing k-mer identifier and sequence.
-        targets (List[Tuple[str, str]]): target sequences that will be prepended to the reverse complement
-                      of each k-mer sequence.
+#     Parameters:
+#         duplex_in (str): Path to the output file for RNAduplex input.
+#         kmers (List[Tuple[str, str]]): List of tuples containing k-mer identifier and sequence.
+#         targets (List[Tuple[str, str]]): target sequences that will be prepended to the reverse complement
+#                       of each k-mer sequence.
     
-    Returns:
-        None
-    """
-    directory: str = os.path.dirname(duplex_in)
-    os.makedirs(directory, exist_ok=True)
+#     Returns:
+#         None
+#     """
+#     directory: str = os.path.dirname(duplex_in)
+#     os.makedirs(directory, exist_ok=True)
 
-    with open(duplex_in, "w") as filtered_kmer_file:
-        for kmer_id, seq in kmers:
-            seq = str(Seq(seq).reverse_complement())
-            for target_id, target_seq in targets:
-                # Write header and sequence lines.
-                filtered_kmer_file.write(f">{kmer_id}_{target_id}\n")
-                filtered_kmer_file.write(f"{target_seq}&{seq}\n")
+#     with open(duplex_in, "w") as filtered_kmer_file:
+#         for kmer_id, seq in kmers:
+#             seq = str(Seq(seq).reverse_complement())
+#             for target_id, target_seq in targets:
+#                 # Write header and sequence lines.
+#                 filtered_kmer_file.write(f">{kmer_id}_{target_id}\n")
+#                 filtered_kmer_file.write(f"{target_seq}&{seq}\n")
                 
-def run_RNAcofold(rnaCofoldInFile: str, paramFile: str) -> str:
+def run_RNAcofold(cofold_in_file: str, param_file: str) -> str:
     """
     Run RNAcofold to calculate RNA secondary structure energies and save the results to a CSV file.
 
     Parameters:
-        rnaCofoldInFile (str): Path to the RNA sequences input file for RNAcofold.
-        paramFile (str): Parameter file for RNAcofold.
+        cofold_in_file (str): Path to the RNA sequences input file for RNAcofold.
+        param_file (str): Parameter file for RNAcofold.
 
     Returns:
         str: The path to the output CSV file containing RNAcofold results.
     """
-    outFile = os.path.splitext(rnaCofoldInFile)[0] + "_cofold_out.csv"
+    outFile = os.path.splitext(cofold_in_file)[0] + "_cofold_out.csv"
     logging.info("Running RNAcofold")
-    command = f'RNAcofold -p0 --output-format=D --jobs=0 --noPS --noconv {rnaCofoldInFile} {paramFile}'
+    command = f'RNAcofold -p0 -d1 --output-format=D --jobs=0 --noPS --noconv {cofold_in_file} {param_file}'
     logging.info(f"Command: {command}")
 
     with open(outFile, 'w') as rcfOutFile:
         process = subprocess.Popen(
             shlex.split(command), stdout=rcfOutFile, stderr=subprocess.PIPE, text=True
         )
+        # Read stderr in real time until the process ends
         while True:
             output = process.stderr.readline()
+            if output == "" and process.poll() is not None:
+                # No more output and process has finished, so exit loop
+                break
             if output:
                 logging.info(output.strip())
         process.wait()

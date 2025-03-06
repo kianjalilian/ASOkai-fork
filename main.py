@@ -5,7 +5,6 @@ from utils.file_operations import (
     collect_scaffold, 
     build_bowtie_index, 
     build_RNAcofold_in, 
-    build_RNAduplex_in,
     run_bowtie,
     run_RNAcofold,
     )
@@ -122,8 +121,8 @@ def main():
     scaffold_path, bowtie_index = get_scaffold_and_index(config)
     create_directories(config, bowtie_index)
 
-
-
+    logging.info("-----------------------------------")
+    
     try:
         oligo_obj = OligoExtractor(str(config["TargetGene"]), 
                                    int(config["EnsembleRelease"]), 
@@ -140,8 +139,8 @@ def main():
     except Exception as e:
         logging.error(f"Error creating OligoExtractor object: {e}")
         sys.exit(1)
-    
-    
+        
+    logging.info("-----------------------------------")
     
     try:
         bowtie_infile = f"{config['Bowtie2Dir']}/bowtie2Home/" + \
@@ -152,9 +151,9 @@ def main():
     except Exception as e:
         logging.error(f"Error during oligo extraction: {e}")
         sys.exit(1)
-    
-    
-    
+        
+    logging.info("-----------------------------------")
+
     try: # TODO: subfolder for indices
         build_bowtie_index(int(config["EnsembleRelease"]), 
                            int(config["GenomeAssembly"]), 
@@ -168,8 +167,8 @@ def main():
     except Exception as e:
         logging.error(f"Error building Bowtie2 transcriptome index: {e}")
     
-    
-    
+    logging.info("-----------------------------------")
+
     # Run Bowtie2 for pre-filtering viable oligos
     try:
         bowtie_index_dir = f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}"
@@ -179,7 +178,8 @@ def main():
     except Exception as e:
         logging.error(f"Error running Bowtie2 for oligo pre-filtering: {e}")
         sys.exit(1)
-        
+    
+    logging.info("-----------------------------------")
         
     # Extract viable kmers based on Bowtie output
     try:
@@ -191,18 +191,20 @@ def main():
         logging.error(f"Error extracting viable kmers: {e}")
         sys.exit(1)
         
-        
-    try:
-        bowtie_index_dir = f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}"
-        bowtie_out = run_bowtie(bowtie_offtarget_infile, 
-                                bowtie_index_dir,
-                                config["BowtieArgs"],
-                                trim=True,
-                                multiplicity_layout=oligo_obj.multiplicity_layout)
-    except Exception as e:
-        logging.error(f"Error running Bowtie2 for oligo pre-filtering: {e}")
-        sys.exit(1)
+    logging.info("-----------------------------------")
 
+    # try:
+    #     bowtie_index_dir = f"{config['Bowtie2Dir']}/bowtie2Home/{bowtie_index}"
+    #     bowtie_out = run_bowtie(bowtie_offtarget_infile, 
+    #                             bowtie_index_dir,
+    #                             config["BowtieArgs"],
+    #                             trim=True,
+    #                             multiplicity_layout=oligo_obj.multiplicity_layout)
+    # except Exception as e:
+    #     logging.error(f"Error running Bowtie2 for oligo pre-filtering: {e}")
+    #     sys.exit(1)
+
+    logging.info("-----------------------------------")
 
 
     # NOTE: The following code is not listed

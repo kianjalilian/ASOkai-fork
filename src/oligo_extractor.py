@@ -54,6 +54,9 @@ class OligoExtractor:
     def __init__(self, gene_id: str, e_release: int, g_assembly: int, species: str, k: int,
                  multiplicity_layout: List[int], bowtie_index: str, oligo_dir: str, tsl_list: List[int],
                  gc_bounds: Optional[Tuple[float, float]] = None, scaffold_path: Optional[str] = None) -> None:
+        
+        logging.info("Creating OligoExtractor object")
+        
         self.gene_id: str = gene_id
         self.k: int = k
         self.g_assembly: int = g_assembly
@@ -107,6 +110,8 @@ class OligoExtractor:
         logging.info(f"Gene name: {self.gene.gene_name}")
         logging.info("Building transcript gene references. This may take a while...")
         self.transcript_gene_lookup: Dict[str, str] = self.get_gene_transcript_mapping()
+        logging.info("OligoExtractor object created successfully")
+
 
     def _kmers(self, s: str, k: int) -> Set[Tuple[str, int]]:
         """
