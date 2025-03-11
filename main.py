@@ -127,9 +127,12 @@ def main():
     
     index_name, index_dir, genome_dir = setup_environment(config)
     
-    gtf_path, cdna_path, pep_path, scaffold_gtf_path = download_genome(config["Species"],
-                                                                       int(config["EnsembleRelease"]),
-                                                                       genome_dir)
+    gtf_path, cdna_path, \
+        pep_path, scaffold_gtf_path = download_genome(config["Species"],
+                                                      int(config["EnsembleRelease"]),
+                                                      genome_dir)
+        
+    
     tsl, tsl_list = convert_tsl_list(config["transcriptSupportLevels"])
     logging.info("-----------------------------------")
     
@@ -146,7 +149,7 @@ def main():
                                    scaffold_gtf_path, 
                                    [int(x) for x in config["MultiplicityLayout"].split(',')],
                                    index_name, 
-                                   str(config['OligoDir']),
+                                   os.path.join(config['OligoDir'], 'oligos'),
                                    ) 
         
     except Exception as e:
@@ -156,12 +159,8 @@ def main():
         
     logging.info("-----------------------------------")
     
-    try:
-        bowtie_infile = os.path.join(config['Bowtie2Dir'],
-                                     "bowtie2Home",
-                                     f"{config['TargetGene']}_{config['OligoLen']}mers.fa")
-                        
-        oligo_obj.extract_candidate_oligos_by_gene(bowtie_infile)
+    try:             
+        bowtie_infile = oligo_obj.extract_candidate_oligos_by_gene()
   
     except Exception as e:
         logging.error(f"Error during oligo extraction: {e}")

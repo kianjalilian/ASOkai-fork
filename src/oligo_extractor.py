@@ -14,6 +14,7 @@ import pandas as pd
 from Bio.Seq import Seq
 import polars as pl
 import ast
+import os
 
 
 class OligoExtractor:
@@ -114,9 +115,15 @@ class OligoExtractor:
         self.gene = self.genome.gene_by_id(gene_id=gene_id)
         
         logging.info(f"Gene name: {self.gene.gene_name}")
+        
         logging.info("Building transcript gene references. This may take a while...")
         self.transcript_gene_lookup: Dict[str, str] = self.get_gene_transcript_mapping()
-        logging.info("OligoExtractor object created successfully")
+        logging.info("Transcript gene references built successfully.")
+        
+        logging.info("")
+        self.extract_candidate_oligos_by_gene()
+
+        logging.info("OligoExtractor object created successfully.")
 
 
     def _kmers(self, s: str, k: int) -> Set[Tuple[str, int]]:
@@ -155,13 +162,9 @@ class OligoExtractor:
         return transcript_lookup
 
 
-    def extract_candidate_oligos_by_gene(self, outfile: str) -> None:
+    def extract_candidate_oligos_by_gene(self) -> str:
         """
-        Extract and process candidate oligos (k-mers) from the specified gene and save results to files.
-
-        This method identifies candidate oligos of length `k` from the gene transcripts, calculates their 
-        chromosomal positions, associates them with relevant transcripts and exons, and saves the results 
-        to a CSV file. It also creates a Bowtie input file for sequence alignment.
+        Extract candidate oligos (k-mers) from the gene and save them to a FASTA file.
         """
         logging.info(f"Extracting {self.k}mers from gene {self.gene_id}")
 
@@ -186,7 +189,6 @@ class OligoExtractor:
             candidate_oligos.update(kmers_set)
             
         
-        
         columns = ['seq', 'chromosomal_position', 'transcripts', 'exons']
         candidate_df = pd.DataFrame(columns=columns, data=candidate_oligos)
         
@@ -199,14 +201,16 @@ class OligoExtractor:
         candidate_df.index = custom_index
         
         logging.info(f"{len(candidate_df)} candidate {self.k}mers found")
-
-        candidate_df.to_csv(f'{self.oligo_dir}/oligos/{self.gene_id}_{self.k}mer_candidates.csv')
         
         self.gene_kmers = candidate_df['seq'].to_numpy().tolist()
                 
+        outfile = os.path.join(self.oligo_dir, f"{self.gene_id}_{self.k}-mers.fa")
         with open(outfile, "w") as tmp_bowtie_in:
             candidate_df.apply(lambda x: tmp_bowtie_in.write(f">{x.name}\n{x['seq']}\n"), axis=1)
-            
+        
+        self.candidate_oligos_df = candidate_df
+        
+        return outfile
 
 
     def extract_viable_kmers(self, in_file: str, out_file: str) -> None: # TODO: Add option to not filter
@@ -298,11 +302,9 @@ class OligoExtractor:
                    "SEQ", "QUAL", "ALIGN SCORE", 
                    "XS", "XN", "XM", "XO", "XG", 
                    "EDIT DIST REF", "MISMATCH POS", "YT"]
-
-        oligo_candidates = pd.read_csv(f'{self.oligo_dir}/oligos/{self.gene_id}_{self.k}mer_candidates.csv', index_col=0)
         
         sam_out = pd.read_csv(infile, sep="\t", header=None, names=cols)
-        sam_out_agg = sam_out.groupby('QNAME').apply(lambda x : calculate_occurrences(x, oligo_candidates.loc[x['QNAME'],'chromosomal_position'].iloc[0]))
+        sam_out_agg = sam_out.groupby('QNAME').apply(lambda x : calculate_occurrences(x, self.candidate_oligos_df.loc[x['QNAME'],'chromosomal_position'].iloc[0]))
         # Convert to dictionary
         self.repeated_sites = sam_out_agg.to_dict()
     
@@ -340,10 +342,6 @@ class OligoExtractor:
         cofold_rep_df = pd.read_csv(cofold_out_repeated)
         cofold_rep_df.set_index('seq_id', inplace=True)
         
-
-        oligo_candidates = pd.read_csv(f'{self.oligo_dir}/oligos/{self.gene_id}_{self.k}mer_candidates.csv', index_col=0, 
-                                       converters={'exons':ast.literal_eval,'transcripts':ast.literal_eval})
-
         
         # result csv column names
         columns = ['seq_num',  
@@ -373,7 +371,7 @@ class OligoExtractor:
 
         for idx in kmer_indices:
             
-            can = oligo_candidates.loc[idx]
+            can = self.candidate_oligos_df.loc[idx]
             
             # extract repeated candidates with higher ddG than maxddG
             repeated_cans = cofold_rep_df[cofold_rep_df.index.str.startswith(idx)].copy()
