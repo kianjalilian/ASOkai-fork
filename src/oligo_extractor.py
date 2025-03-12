@@ -13,7 +13,6 @@ import logging
 import pandas as pd
 from Bio.Seq import Seq
 import polars as pl
-import ast
 import os
 
 
@@ -97,7 +96,7 @@ class OligoExtractor:
         )
         
         self.genome.download(overwrite=False)
-        self.genome.index()
+        self.genome.index(overwrite=False)
 
 
         if scaffold_path:
@@ -115,16 +114,13 @@ class OligoExtractor:
         self.gene = self.genome.gene_by_id(gene_id=gene_id)
         
         logging.info(f"Gene name: {self.gene.gene_name}")
+        logging.info(f"Gene id: {self.gene_id}")
         
         logging.info("Building transcript gene references. This may take a while...")
         self.transcript_gene_lookup: Dict[str, str] = self.get_gene_transcript_mapping()
         logging.info("Transcript gene references built successfully.")
-        
-        logging.info("")
-        self.extract_candidate_oligos_by_gene()
 
         logging.info("OligoExtractor object created successfully.")
-
 
     def _kmers(self, s: str, k: int) -> Set[Tuple[str, int]]:
         """
@@ -149,24 +145,20 @@ class OligoExtractor:
         Returns:
             dict: A dictionary mapping transcript IDs to gene information.
         """
-        # TODO: might be extended to exon mapping
-        transcript_lookup: Dict[str, str] = {}
-        transcripts = self.genome.transcripts()
+        # Collect all transcripts
+        all_transcripts = self.genome.transcripts()
         if self.genome_scaffolds:
-            transcripts.extend(self.genome_scaffolds.transcripts())
-
-        for t in transcripts:
-            if t.transcript_id not in transcript_lookup:
-                transcript_lookup[t.transcript_id] = t.gene_id
-                
-        return transcript_lookup
+            all_transcripts.extend(self.genome_scaffolds.transcripts())
+        
+        # Use dictionary comprehension - much faster than building incrementally
+        return {t.transcript_id: t.gene_id for t in all_transcripts}
 
 
     def extract_candidate_oligos_by_gene(self) -> str:
         """
         Extract candidate oligos (k-mers) from the gene and save them to a FASTA file.
         """
-        logging.info(f"Extracting {self.k}mers from gene {self.gene_id}")
+        logging.info(f"Extracting {self.k}-mers from gene")
 
         transcripts = self.gene.transcripts
         candidate_oligos = set()
@@ -178,7 +170,11 @@ class OligoExtractor:
                 (
                     tup[0],
                     get_chromosomal_positions_per_transcript(
-                        t.transcript_id, tup[1], self.genome, self.k, self.genome_scaffolds
+                        t.transcript_id, 
+                        tup[1], 
+                        self.genome, 
+                        self.k, 
+                        self.genome_scaffolds
                     ),
                     t.transcript_id,
                     get_exon_id(tup[1], t)
@@ -189,31 +185,34 @@ class OligoExtractor:
             candidate_oligos.update(kmers_set)
             
         
-        columns = ['seq', 'chromosomal_position', 'transcripts', 'exons']
-        candidate_df = pd.DataFrame(columns=columns, data=candidate_oligos)
+        candidate_df = pl.DataFrame(
+            data=list(candidate_oligos),
+            schema=['seq', 'chromosomal_position', 'transcripts', 'exons']
+        )   
+             
+        candidate_df = candidate_df.group_by(['seq', 'chromosomal_position']).agg([
+            pl.col('exons').alias('exons'),
+            pl.col('transcripts').alias('transcripts')
+        ])
         
-        candidate_df = candidate_df.groupby(['seq', 'chromosomal_position']).agg({
-            'exons' : lambda x: list(x),
-            'transcripts' : lambda x: list(x),
-        }).reset_index()
+        custom_index = pl.Series("index", [f'S{str(i).zfill(6)}' for i in range(1, len(candidate_df) + 1)])
+        candidate_df = candidate_df.insert_column(0, custom_index)
         
-        custom_index = [f'S{str(i).zfill(6)}' for i in range(1, len(candidate_df) + 1)]
-        candidate_df.index = custom_index
+        logging.info(f"{len(candidate_df)} candidate {self.k}-mers found")
         
-        logging.info(f"{len(candidate_df)} candidate {self.k}mers found")
-        
-        self.gene_kmers = candidate_df['seq'].to_numpy().tolist()
-                
-        outfile = os.path.join(self.oligo_dir, f"{self.gene_id}_{self.k}-mers.fa")
+        self.gene_kmers = candidate_df.select('seq').to_series().to_list() 
+                       
+        outfile = os.path.join(self.oligo_dir, f"{self.gene_id}_{self.k}mers.fa")
         with open(outfile, "w") as tmp_bowtie_in:
-            candidate_df.apply(lambda x: tmp_bowtie_in.write(f">{x.name}\n{x['seq']}\n"), axis=1)
+            for row in candidate_df.iter_rows(named=True):
+                tmp_bowtie_in.write(f">{row['index']}\n{row['seq']}\n")
         
         self.candidate_oligos_df = candidate_df
         
         return outfile
 
 
-    def extract_viable_kmers(self, in_file: str, out_file: str) -> None: # TODO: Add option to not filter
+    def filter_viable_kmers(self, in_file: str, out_file: str) -> None: # TODO: Add option to not filter
         """
         Filter the aligned k-mers based on Bowtie2 alignment results.
 
@@ -236,14 +235,20 @@ class OligoExtractor:
                .agg(
                     pl.col('RNAME')
                     .str.split(".")  
-                    .list.first().alias('transcript_id')
+                    .list.first()
+                    .alias('transcript_id')
                     .replace(self.transcript_gene_lookup)
                     .alias('genes'),
-                pl.col('QNAME').first().alias('seq_id'),  
-                ).with_columns(
-                    pl.col('genes').list.set_difference([self.gene_id])
-                ).filter(pl.col('genes').list.len() == 0)
-                .select([pl.exclude('genes')])  
+                    pl.col('QNAME')
+                    .first()
+                    .alias('seq_id'),  
+                )
+               .with_columns(
+                    pl.col('genes')
+                    .list.set_difference([self.gene_id])
+                )
+               .filter(pl.col('genes').list.len() == 0)
+               .select([pl.exclude('genes')])  
             )
         
         self.filtered_kmers = res.select(["seq_id", "SEQ"]).to_numpy().tolist()
@@ -256,57 +261,94 @@ class OligoExtractor:
         logging.info(f"Filtered kmers written to file: {out_file}")
 
         return out_file
+    
+    # def extract_off_target_sites(self, infile: str) -> None:
+    #     """
+    #     Extract off-target
+    #     """
+        
+        
 
     def extract_repeated_sites(self, infile: str) -> None:
         """
-        Extract repeated sites with up to some missmatches in the flanks for each k-mer by running Bowtie2 on the local gene region.
+        Extract repeated sites for each k-mer from the Bowtie2 alignment results.
         
         Parameters:
-            in_file (str): Path to the input SAM file from Bowtie2 alignment.
-            
+            infile (str): Path to the input SAM file from Bowtie2 alignment.
         """
-        def calculate_occurrences(group: pd.DataFrame, position_to_ignore: str) -> List[Tuple]:
-            # Extract positions and sequences for each row
-            result = group.apply(lambda row: {
-                                        'positions': (lambda pos: pos if pos != position_to_ignore else None)(
-                                            get_chromosomal_positions_per_transcript(
-                                                row['RNAME'], 
-                                                row['POS'] - self.multiplicity_layout[0], 
-                                                self.genome, 
-                                                self.k, 
-                                                self.genome_scaffolds
-                                            )
-                                        ),
-                                        'seq': get_seq_by_transcript_position(
-                                            row['RNAME'], 
-                                            row['POS'] - self.multiplicity_layout[0], 
-                                            self.genome, 
-                                            self.k, 
-                                            self.genome_scaffolds
-                                        )
-                                        }, 
-                                axis=1)
-
-            # Extract unique positions
-            result = pd.DataFrame(result.tolist())
-            result = result.dropna()
-            result = result.drop_duplicates()
-
-
-            return list(result.itertuples(index=False, name=None))
+        def calculate_occurrences(group: pl.DataFrame, position_to_ignore: str) -> List[Tuple]:
+            # Process each row to get positions and sequences
+            positions_and_seqs = []
+            
+            for row in group.iter_rows(named=True):
+                pos = get_chromosomal_positions_per_transcript(
+                    row['RNAME'], 
+                    row['POS'] - self.multiplicity_layout[0], 
+                    self.genome, 
+                    self.k, 
+                    self.genome_scaffolds
+                )
+                
+                # Skip positions that match the one to ignore
+                if pos == position_to_ignore:
+                    continue
+                    
+                seq = get_seq_by_transcript_position(
+                    row['RNAME'], 
+                    row['POS'] - self.multiplicity_layout[0], 
+                    self.genome, 
+                    self.k, 
+                    self.genome_scaffolds
+                )
+                
+                if pos is not None:  # Skip null positions
+                    positions_and_seqs.append({"positions": pos, "seq": seq})
+            
+            # Convert to DataFrame, remove duplicates
+            if positions_and_seqs:
+                result_df = pl.DataFrame(positions_and_seqs)
+                result_df = result_df.unique()
+                return [(row['positions'], row['seq']) for row in result_df.to_dicts()]
+            else:
+                return []
         
-    
+        # Define column names for the SAM file
         cols = ["QNAME", "FLAG", "RNAME", 
-                   "POS", "MAPQ", "CIGAR", 
-                   "RNEXT", "PNEXT", "TLEN", 
-                   "SEQ", "QUAL", "ALIGN SCORE", 
-                   "XS", "XN", "XM", "XO", "XG", 
-                   "EDIT DIST REF", "MISMATCH POS", "YT"]
+            "POS", "MAPQ", "CIGAR", 
+            "RNEXT", "PNEXT", "TLEN", 
+            "SEQ", "QUAL", "ALIGN_SCORE", 
+            "XS", "XN", "XM", "XO", "XG", 
+            "EDIT_DIST_REF", "MISMATCH_POS", "YT"]
         
-        sam_out = pd.read_csv(infile, sep="\t", header=None, names=cols)
-        sam_out_agg = sam_out.groupby('QNAME').apply(lambda x : calculate_occurrences(x, self.candidate_oligos_df.loc[x['QNAME'],'chromosomal_position'].iloc[0]))
-        # Convert to dictionary
-        self.repeated_sites = sam_out_agg.to_dict()
+        # Read SAM file using Polars
+        sam_df = pl.read_csv(
+            infile, 
+            separator="\t", 
+            has_header=False,
+            new_columns=cols
+        )
+        
+        # Process each group
+        self.repeated_sites = {}
+        
+        # Get unique QNAME values
+        qnames = sam_df['QNAME'].unique().to_list()
+        
+        for qname in qnames:
+            # Filter rows for this QNAME
+            group = sam_df.filter(pl.col('QNAME') == qname)
+            
+            # Get the position to ignore from candidate_oligos_df
+            position_to_ignore = self.candidate_oligos_df.filter(
+                pl.col('index') == qname
+            )['chromosomal_position'].item()
+            
+            # Calculate occurrences
+            occurrences = calculate_occurrences(group, position_to_ignore)
+            
+            # Store in dictionary
+            self.repeated_sites[qname] = occurrences
+
     
     
 

@@ -238,6 +238,7 @@ def run_bowtie(
     in_file: str,
     index_path: str,
     bowtie_args: str,
+    bowtie2Home: str,
     gene_only: bool = False,
     gene_id: Optional[str] = None,
     trim: bool = False,
@@ -250,6 +251,7 @@ def run_bowtie(
         in_file (str): Path to the input file.
         index_path (str): Path to the Bowtie2 index.
         bowtie_args (str): Additional command-line arguments for Bowtie2.
+        bowtie2Home (str): Path to the Bowtie2 output directory.
         gene_only (bool): If True, aligns only to the target gene region.
         gene_id (Optional[str]): The gene identifier to use for gene_only alignment. Required if gene_only is True.
         trim (bool): If True, apply trimming options.
@@ -259,6 +261,7 @@ def run_bowtie(
     Returns:
         str: The path to the output SAM file.
     """
+    in_file_name = os.path.basename(in_file)
     if gene_only:
         logging.info("Running Bowtie2 alignment for target gene")
         if not gene_id:
@@ -266,10 +269,10 @@ def run_bowtie(
             logging.error(msg)
             raise ValueError(msg)
 
-        out_file = f"{os.path.splitext(in_file)[0]}_target_only.sam"
+        out_file_name = f"{os.path.splitext(in_file_name)[0]}_target_only.sam"
     else:
         logging.info("Running Bowtie2 alignment")
-        out_file = f"{os.path.splitext(in_file)[0]}.sam"
+        out_file_name = f"{os.path.splitext(in_file_name)[0]}.sam"
 
 
     if trim:
@@ -279,11 +282,12 @@ def run_bowtie(
             raise ValueError(msg)
         trim5_val = str(multiplicity_layout[0])
         trim3_val = str(multiplicity_layout[2])
-        out_file = f"{os.path.splitext(out_file)[0]}_trimmed.sam"
+        out_file_name = f"{os.path.splitext(out_file_name)[0]}_trimmed.sam"
 
+    out_file_path = os.path.join(bowtie2Home, out_file_name)
 
     # Build the initial command as a list to avoid shell injection issues.
-    command = ["bowtie2", "-x", index_path, "-U", in_file, "-S", out_file]
+    command = ["bowtie2", "-x", index_path, "-U", in_file, "-S", out_file_path]
     if bowtie_args:
         command.extend(shlex.split(bowtie_args))
     if trim:
@@ -299,7 +303,7 @@ def run_bowtie(
 
     elapsed = time.time() - start_time
     logging.info("Bowtie2 processing time: %.2f seconds", elapsed)
-    return out_file
+    return out_file_path
 
     
 def build_RNAcofold_in(

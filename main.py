@@ -189,7 +189,8 @@ def main():
     try:
         bowtie_out = run_bowtie(bowtie_infile, 
                                 index_path,
-                                config["BowtieArgs"])
+                                config["BowtieArgs"],
+                                os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),)
     except Exception as e:
         logging.error(f"Error running Bowtie2 for oligo pre-filtering: {e}")
         logging.info("Exiting.")
@@ -197,32 +198,19 @@ def main():
     
     logging.info("-----------------------------------")
         
-    # Extract viable kmers based on Bowtie output
+    # filter viable kmers based on Bowtie output
     try:
         bowtie_offtarget_infile = f"{config['Bowtie2Dir']}/bowtie2Home/" + \
                 f'{config["TargetGene"]}_{config["OligoLen"]}mers_filtered.fa'
-        oligo_obj.extract_viable_kmers(bowtie_out, bowtie_offtarget_infile)
+        oligo_obj.filter_viable_kmers(bowtie_out, bowtie_offtarget_infile)
         
     except Exception as e:
-        logging.error(f"Error extracting viable kmers: {e}")
+        logging.error(f"Error filtering viable kmers: {e}")
         logging.info("Exiting.")
         sys.exit(1)
         
     logging.info("-----------------------------------")
-
-    try:
-        bowtie_out = run_bowtie(bowtie_offtarget_infile, 
-                                index_path,
-                                config["BowtieArgs"],
-                                trim=True,
-                                multiplicity_layout=oligo_obj.multiplicity_layout)
-    except Exception as e:
-        logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
-        logging.info("Exiting.")
-        sys.exit(1)
-
-    logging.info("-----------------------------------")
-
+    
     try:
         cofold_in = f"{config['OligoDir']}/oligos/{index_name}_{config['TargetGene']}" + \
                     f"_filtered_{config['OligoLen']}mers.rnacofoldin"
@@ -235,6 +223,20 @@ def main():
         logging.info("Exiting.")
         sys.exit(1)
     
+    logging.info("-----------------------------------")
+
+    try:
+        bowtie_offtarget_out = run_bowtie(bowtie_offtarget_infile, 
+                                index_path,
+                                config["BowtieArgs"],
+                                os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
+                                trim=True,
+                                multiplicity_layout=oligo_obj.multiplicity_layout)
+    except Exception as e:
+        logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
+
     logging.info("-----------------------------------")
     
     try:
@@ -253,9 +255,10 @@ def main():
     logging.info("-----------------------------------")
         
     try:      
-        bowtie_out_gene_only = run_bowtie(bowtie_infile, 
+        gene_bowtie_out = run_bowtie(bowtie_infile, 
                                           gene_index_path,
                                           config["BowtieArgs"],
+                                          os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
                                           gene_only=True,
                                           gene_id=oligo_obj.gene_id,
                                           trim=True,
@@ -269,7 +272,7 @@ def main():
         
 
     try:
-        oligo_obj.extract_repeated_sites(bowtie_out_gene_only)
+        oligo_obj.extract_repeated_sites(gene_bowtie_out)
     except Exception as e:
         logging.error(f"Error extracting repeated sites: {e}")
         logging.info("Exiting.")

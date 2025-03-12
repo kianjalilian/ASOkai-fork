@@ -1,7 +1,4 @@
 import logging
-import os
-import subprocess
-import shlex
 from typing import Optional, Tuple, Any, List
 
 def get_chromosomal_positions_per_transcript(
@@ -15,13 +12,14 @@ def get_chromosomal_positions_per_transcript(
     Retrieve the absolute chromosomal coordinates corresponding to a specific relative position within a transcript.
 
     This function calculates the chromosomal coordinates for a given position within a transcript.
+    
     It first attempts to locate the transcript using the main Ensembl object, and if not found, uses an optional
     scaffold annotation.
 
     Parameters:
         transcript (str): The Ensembl transcript ID.
         position_in_transcript (int): The 1-based position within the transcript.
-        genome (Any): The main EnsemblRelease object for querying transcript data.
+        genome (Any): The main Genome object for querying transcript data.
         k (int): The window length for coordinate calculation.
         genome_scaffolds (Optional[Any]): Optional Genome object for scaffold annotations.
 
