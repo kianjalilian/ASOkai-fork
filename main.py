@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import sys
-from utils.file_operations import (
+from src.utils.file_operations import (
     build_bowtie_index, 
     build_RNAcofold_in, 
     run_bowtie,

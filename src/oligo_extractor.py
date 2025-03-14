@@ -1,7 +1,7 @@
 from typing import List, Set, Tuple, Dict, Optional, Any, Union, NamedTuple
 from Bio.SeqUtils import gc_fraction
 from pyensembl import Genome
-from utils.sequence_analysis import (
+from src.utils.sequence_analysis import (
     get_chromosomal_positions_per_transcript,
     build_transcript_to_genomic_map,
     get_chromosomal_positions_with_mapping,
@@ -11,7 +11,7 @@ from utils.sequence_analysis import (
     longest_at_run,
     longest_t_run
 )
-from utils.kmer_searcher import KmerSearcher
+from src.utils.kmer_searcher import KmerSearcher
 import logging
 import polars as pl
 import os
