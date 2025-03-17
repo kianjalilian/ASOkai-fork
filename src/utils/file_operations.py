@@ -3,11 +3,11 @@ import gzip
 import shlex
 import subprocess
 import logging
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple, Dict, Any, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from src.oligo_extractor import TargetSite
+from src.oligo_extractor import TargetSite, SecondarySite
 from pyensembl import Genome
 import time
 import gget
@@ -306,44 +306,63 @@ def run_bowtie(
     logging.info("Bowtie2 processing time: %.2f seconds", elapsed)
     return out_file_path
 
-    
+
 def build_RNAcofold_in(
     cofold_in: str, 
-    targets: Dict[str, TargetSite], 
-    # targets: Optional[Dict[str, List[Tuple[Any, str]]]] = None
-    ) -> None:
+    targets: Union[Dict[str, TargetSite], Dict[str, List[SecondarySite]]],
+    reference_targets: Optional[Dict[str, TargetSite]] = None
+) -> None:
     """
-    Builds an input file for RNAcofold analysis from filtered k-mers.
+    Builds an input file for RNAcofold analysis for either self-folding or secondary binding.
     
     Parameters:
         cofold_in (str): Path to the output file for RNAcofold input.
-        kmers (List[Tuple[str, str]]): List of tuples containing k-mer identifier and sequence.
-        targets (Optional[Dict[str, List[Tuple[Any, str]]]]): Optional mapping of k-mer identifiers to target sequences.
-            If provided, the reverse complement of these target sequences will be used.
+        targets: Either:
+            - Dict[str, TargetSite]: For self-folding analysis (sequence with its own reverse complement)
+            - Dict[str, List[SecondarySite]]: For secondary sites analysis (comparing reference to potential 
+              secondary sites)
+        reference_targets: Optional[Dict[str, TargetSite]]: When using the second mode (list of TargetSites),
+            this provides the reference sequences to compare the corresponding oligo (reverse complement) to the secondary sites. If None, the function will expect the
+            first mode (self-folding).
     
     Returns:
         None
-
     """
     logging.info("Building RNAcofold input file")
-
-    with open(cofold_in, "w") as cofold_file:
-        # if targets:
-        #     for kmer_id, seq in kmers:
-        #         if kmer_id in targets:
-        #             for i, target in enumerate(targets[kmer_id]):
-                        
-        #                 # Write header and sequence lines.
-        #                 kmer_file.write(f">{kmer_id}_{i}\n")
-        #                 kmer_file.write(f"{seq}&{str(Seq(target[1]).reverse_complement())}\n")
-        #         else:
-        #             logging.warning(f"No target found for k-mer {kmer_id}, skipping targets.")
-        # else:
-            for key, targetSite in targets.items():
-                cofold_file.write(f">{key}\n")
-                cofold_file.write(f"{targetSite.sequence}&{str(Seq(targetSite.sequence).reverse_complement())}\n")
+    entry_count = 0
     
-    logging.info("RNAcofold input file created successfully.")
+    with open(cofold_in, "w") as cofold_file:
+        # Determine which mode we're in by checking the first value's type
+        if targets and isinstance(next(iter(targets.values())), list):
+            # Secondary binding analysis mode
+            if not reference_targets:
+                raise ValueError("reference_targets must be provided when targets contains lists of TargetSites")
+            
+            for target_id, secondary_sites in targets.items():
+                if target_id not in reference_targets:
+                    logging.warning(f"No reference target found for {target_id}, skipping")
+                    continue
+                    
+                reference_seq = reference_targets[target_id].sequence
+                
+                # Write comparison between reference target and each potential secondary site
+                for i, secondary_site in enumerate(secondary_sites):
+                    # Create a unique identifier for this comparison
+                    entry_id = f"{target_id}_{i}"
+                    
+                    cofold_file.write(f">{entry_id}\n")
+                    cofold_file.write(f"{secondary_site.sequence}&{str(Seq(reference_seq).reverse_complement())}\n")
+                    entry_count += 1
+        else:
+            # Standard self-folding mode
+            for key, target_site in targets.items():
+                cofold_file.write(f">{key}\n")
+                cofold_file.write(f"{target_site.sequence}&{str(Seq(target_site.sequence).reverse_complement())}\n")
+                entry_count += 1
+    
+    logging.info(f"RNAcofold input file created successfully with {entry_count} entries")
+
+
                 
 def run_RNAcofold(
     cofold_in_file: str, 

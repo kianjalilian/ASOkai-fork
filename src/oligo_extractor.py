@@ -22,6 +22,12 @@ class TargetSite(NamedTuple):
     gene_id: str = None
     transcripts: List[str] = None
     exons: List[str] = None
+    dG: float = None
+
+class SecondarySite(NamedTuple):
+    sequence: str = None
+    chromosomal_position: str = None
+    dG: float = None
     
 class OligoExtractor:
     """
@@ -290,13 +296,70 @@ class OligoExtractor:
         self.candidate_targets = {key: value 
                                  for key, value in self.candidate_targets.items() 
                                  if key in filtered_keys}
-
         return outfile
     
-    # def extract_off_target_sites(self, infile: str) -> None:
-    #     """
-    #     Extract off-target
-    #     """
+    
+    def add_dg_to_targets(
+        self, 
+        cofold_output: str
+    ) -> None:
+        """
+        Parse RNAcofold output from CSV and add dG values to candidate target TargetSite objects.
+        
+        Parameters:
+            cofold_output (str): Path to the RNAcofold output CSV file with columns:
+                                seq_num, seq_id, seq, mfe_struct, mfe, ensemble_energy, prob_mfe, dG_binding
+        
+        Returns:
+            None: Updates the TargetSite objects in the self.candidate_targets dictionary with dG values.
+        """
+        logging.info("Adding dG values to candidate targets from RNAcofold CSV")
+        
+        # Track statistics
+        targets_updated = 0
+        targets_missing = 0
+        
+        try:
+            # Using Polars to read the CSV
+            df = pl.read_csv(cofold_output)
+            
+            # Verify required columns exist
+            required_columns = ["seq_id", "dG_binding"]
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logging.error(f"Missing required columns in CSV: {missing_columns}")
+                logging.error(f"Available columns: {df.columns}")
+                return
+                
+            # Process each row
+            for row in df.iter_rows(named=True):
+                target_id = str(row["seq_id"])
+                
+                    
+                try:
+                    dg_binding = float(row["dG_binding"]) if row["dG_binding"] is not None else None
+                    
+                    if target_id in self.candidate_targets:
+                        self.candidate_targets[target_id] = self.candidate_targets[target_id]._replace(dG=dg_binding)
+                        targets_updated += 1
+                    else:
+                        logging.warning(f"Target ID '{target_id}' from RNAcofold output not found in candidate_targets")
+                        targets_missing += 1
+                except (ValueError, TypeError) as e:
+                    logging.error(f"Failed to parse energy values for target {target_id}: {e}")
+            
+            # Log summary
+            if targets_missing == 0:
+                logging.info(f"Updated energy values for {targets_updated} targets.")
+            else:
+                logging.info(f"Updated energy values for {targets_updated} targets. {targets_missing} targets not found.")
+            
+            print(self.candidate_targets)
+        except Exception as e:
+            logging.error(f"Error parsing RNAcofold CSV output: {e}")
+
+
         
     
 
@@ -323,9 +386,10 @@ class OligoExtractor:
             truncate_ragged_lines=True
         )
         
+        logging.info(f"Extracting repeated sites for {len(sam_df)} alignments")
         
         # Initialize results dictionary
-        self.repeated_sites: Dict[str, List[TargetSite]] = {qname: [] for qname in sam_df['QNAME'].unique()}
+        self.repeated_sites: Dict[str, List[SecondarySite]] = {qname: [] for qname in sam_df['QNAME'].unique()}
         
         # Add adjusted position column
         sam_df = sam_df.with_columns(
@@ -398,15 +462,9 @@ class OligoExtractor:
                 if not filtered_df.is_empty():
                     unique_df = filtered_df.unique()
                     
-                    # Add to results as TargetSite objects
+                    # Add to results as SecondarySite objects
                     for row in unique_df.iter_rows(named=True):
-                        target_site = TargetSite(
-                            sequence=row['seq'],
-                            chromosomal_position=row['positions'],
-                            gene_id=None,
-                            transcripts=None,
-                            exons=None
-                        )
+
                         
                         # Check if this site is already in the list (based on position and sequence)
                         existing_sites = [
@@ -416,13 +474,111 @@ class OligoExtractor:
                         
                         if not existing_sites:
                             # Add new site only if it doesn't already exist
-                            self.repeated_sites[qname].append(target_site)
+                                                    
+                            repeat_site = SecondarySite(
+                                sequence=row['seq'],
+                                chromosomal_position=row['positions'],
+                            )
+                            self.repeated_sites[qname].append(repeat_site)
                             
                             
-        print(self.repeated_sites)
         
 
 
+    def filter_repeated_sites_by_ddg(
+            self,
+            cofold_output_path: str,
+            min_ddg_threshold: float = 5.0
+        ) -> None:
+            """
+            Filter repeated sites based on ddG values calculated from RNAcofold CSV output.
+            
+            ddG is calculated as: dG_binding - dG_self_folding
+            where dG_binding is the binding energy between target and repeated site,
+            and dG_self_folding is the self-folding energy of the candidate target.
+            More negative ddG values indicate stronger differential binding.
+            
+            Parameters:
+                cofold_output_path (str): Path to the RNAcofold output CSV file with columns including
+                                        'seq_id' and 'dG_binding'.
+                min_ddg_threshold (float): Minimum ddG threshold for keeping a site (more negative = stronger binding)
+                                        Sites with ddG values above this threshold will be filtered out.
+            """
+            logging.info(f"Filtering repeated sites by ddG threshold {min_ddg_threshold}")
+            
+            # Parse RNAcofold CSV results
+            try:
+                # Read the CSV file using polars
+                df = pl.read_csv(cofold_output_path)
+                df = df.sort("seq_id")
+                
+                # Verify required columns exist
+                required_columns = ["seq_id", "dG_binding"]
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    logging.error(f"Missing required columns in CSV: {missing_columns}")
+                    logging.error(f"Available columns: {df.columns}")
+                    return
+
+                for row in df.iter_rows(named=True):
+                    seq_id, site_idx = str(row["seq_id"]).split('_')
+                    site_idx = int(site_idx)
+                    try:
+                        dg_binding = float(row["dG_binding"]) if row["dG_binding"] is not None else None
+                        if dg_binding is not None:
+                            self.repeated_sites[seq_id][site_idx] = self.repeated_sites[seq_id][site_idx]._replace(dG=dg_binding)
+                            
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"Failed to parse dG_binding for {site_id}: {e}")
+                
+                # Count sites before filtering
+                total_sites_before = sum(len(sites) for sites in self.repeated_sites.values())
+                
+                # Filter sites based on ddG values
+                filtered_sites = {}
+                for target_id, sites in self.repeated_sites.items():
+                    filtered_list = []
+                    
+                    # Get the self-folding dG of the candidate target
+                    if target_id not in self.candidate_targets:
+                        logging.warning(f"No candidate target found for {target_id}, skipping")
+                        continue
+                        
+                    candidate_target = self.candidate_targets[target_id]
+                    if not hasattr(candidate_target, 'dG') or candidate_target.dG is None:
+                        logging.warning(f"Candidate target {target_id} has no dG value, skipping")
+                        continue
+                        
+                    dg_self_folding = candidate_target.dG
+                    
+                    # Calculate ddG for each site and filter based on threshold
+                    for site in sites:
+                        if hasattr(site, 'dG') and site.dG is not None:
+                            # Calculate ddG as the difference between binding energy and self-folding energy
+                            ddg = site.dG - dg_self_folding
+                            
+                            # Keep only sites with ddG below (more negative than) threshold
+                            if ddg <= min_ddg_threshold:
+                                filtered_list.append(site)
+                                
+                            # Log the values for debugging
+                            logging.debug(f"Site in {target_id}: dG_binding={site.dG}, dG_self_folding={dg_self_folding}, ddG={ddg}")
+                        else:
+                            logging.warning(f"Site in {target_id} has no dG value, skipping")
+                    
+                    filtered_sites[target_id] = filtered_list
+                
+                # Replace the original dictionary with the filtered one
+                self.repeated_sites = filtered_sites
+                
+                # Count sites after filtering
+                total_sites_after = sum(len(sites) for sites in self.repeated_sites.values())
+                
+                logging.info(f"Filtered repeated sites based on ddG: {total_sites_before} → {total_sites_after} sites")
+                print(self.repeated_sites)
+            except Exception as e:
+                logging.error(f"Error filtering repeated sites: {e}")
+                raise
 
     
 

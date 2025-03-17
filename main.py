@@ -226,20 +226,14 @@ def main():
         logging.info("Exiting.")
         sys.exit(1)
     
-    logging.info("-----------------------------------")
-
     try:
-        bowtie_offtarget_out = run_bowtie(filtered_fasta_path, 
-                                index_path,
-                                config["BowtieArgs"],
-                                os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
-                                trim=True,
-                                multiplicity_layout=oligo_obj.multiplicity_layout)
+        oligo_obj.add_dg_to_targets(cofold_out)
     except Exception as e:
-        logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
+        logging.error(f"Error adding binding affinity to targets: {e}")
         logging.info("Exiting.")
         sys.exit(1)
-
+        
+        
     logging.info("-----------------------------------")
     
     try:
@@ -272,30 +266,48 @@ def main():
         logging.info("Exiting.")
         sys.exit(1)
         
-        
+    logging.info("-----------------------------------")
 
-    # try:
-    oligo_obj.extract_repeated_sites(bowtie_repeated_out)
-    # except Exception as e:
-    #     logging.error(f"Error extracting repeated sites: {e}")
-    #     logging.info("Exiting.")
-    #     sys.exit(1)
+    try:
+        oligo_obj.extract_repeated_sites(bowtie_repeated_out)
+    except Exception as e:
+        logging.error(f"Error extracting repeated sites: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
         
         
+    try:
+        cofold_in_repeated = cofold_in.replace(".rnacofoldin", "_repeated.rnacofoldin")
+
+        build_RNAcofold_in(cofold_in_repeated, oligo_obj.repeated_sites, oligo_obj.candidate_targets)
+        cofold_out_repeated = run_RNAcofold(cofold_in_repeated, config["CofoldParamFile"])
         
-    # # try:
-    # cofold_in_repeated = (
-    #     f"{config['DataDir']}/oligos/{index_name}_{config['TargetGene']}_prone_"
-    #     f"{int(config['OligoLen'])}mers.rnacofoldin"
-    # )
-    # build_RNAcofold_in(cofold_in_repeated, oligo_obj.filtered_kmers, oligo_obj.repeated_sites)
-    # cofold_out_repeated = run_RNAcofold(cofold_in_repeated, " -P "+config["CofoldParamFile"])
-        
-    # # except Exception as exc:
-    # #     logging.error("Error getting binding affinity for repeated target sites: %s", exc)
-    # #     logging.info("Exiting.")
-    # #     sys.exit(1)
+    except Exception as exc:
+        logging.error("Error getting binding affinity for repeated target sites: %s", exc)
+        logging.info("Exiting.")
+        sys.exit(1)
     
+    try:
+        oligo_obj.filter_repeated_sites_by_ddg(cofold_out_repeated)
+    except Exception as e:
+        logging.error(f"Error filtering repeated sites by ddG: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
+    logging.info("-----------------------------------")
+
+    try:
+        bowtie_offtarget_out = run_bowtie(filtered_fasta_path, 
+                                index_path,
+                                config["BowtieArgs"],
+                                os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
+                                trim=True,
+                                multiplicity_layout=oligo_obj.multiplicity_layout)
+    except Exception as e:
+        logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
+
+    logging.info("-----------------------------------")
     
     
     # try:
