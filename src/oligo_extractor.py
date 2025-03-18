@@ -86,7 +86,8 @@ class OligoExtractor:
         self.gc_bounds: Tuple[float, float] = gc_bounds
         self.data_dir: str = data_dir
         self.bowtie_index: str = bowtie_index
-        self.repeated_sites: Dict[str, Any] = {}
+        self.repeated_sites: Dict[str, List[SecondarySite]] = {}
+        self.off_target_sites: Dict[str, List[SecondarySite]] = {}
         self.non_prone_multiplicity: Dict[str, Union[int, float]] = {}
 
         if species == "mus_musculus":
@@ -127,7 +128,7 @@ class OligoExtractor:
         logging.info(f"Gene id: {self.gene_id}")
         
         logging.info("Building transcript gene references. This may take a while...")
-        self.transcript_gene_lookup: Dict[str, str] = self.get_gene_transcript_mapping()
+        self.transcript_gene_lookup: Dict[str, str] = self._get_gene_transcript_mapping()
         logging.info("Transcript gene references built successfully.")
 
         logging.info("OligoExtractor object created successfully.")
@@ -151,7 +152,7 @@ class OligoExtractor:
         
         return set(kmers_list)
 
-    def get_gene_transcript_mapping(self) -> Dict[str, str]:
+    def _get_gene_transcript_mapping(self) -> Dict[str, str]:
         """
         Create a mapping of transcript IDs to gene information.
 
@@ -355,135 +356,96 @@ class OligoExtractor:
             else:
                 logging.info(f"Updated energy values for {targets_updated} targets. {targets_missing} targets not found.")
             
-            print(self.candidate_targets)
         except Exception as e:
             logging.error(f"Error parsing RNAcofold CSV output: {e}")
 
 
-        
-    
-
-    def extract_repeated_sites(self, infile: str) -> None:
+    def _extract_secondary_sites(self, infile: str) -> Dict[str, List[SecondarySite]]:
         """
-        Extract repeated sites for each target from the Bowtie2 alignment results.
-        Uses Polars native functions for efficient processing and minimizes transcript mapping creation.
+        Extract secondary sites for each target from the Bowtie2 alignment results.
         
         Parameters:
             infile (str): Path to the input SAM file from Bowtie2 alignment.
+        
+        Returns:
+            Dict[str, List[SecondarySite]]: Dictionary of secondary sites for each QNAME.
         """
-        # Define column names for the SAM file
-        cols = ["QNAME", "FLAG", "RNAME", 
-            "POS", "MAPQ", "CIGAR", 
-            "RNEXT", "PNEXT", "TLEN", 
-            "SEQ", "QUAL", "ALIGN_SCORE",]
+        cols = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ", "QUAL", "ALIGN_SCORE"]
         
-        # Read SAM file using Polars
-        sam_df = pl.read_csv(
-            infile, 
-            separator="\t", 
-            has_header=False,
-            new_columns=cols,
-            truncate_ragged_lines=True
-        )
+        sam_df = pl.read_csv(infile, separator="\t", has_header=False, new_columns=cols, truncate_ragged_lines=True)
         
-        logging.info(f"Extracting repeated sites for {len(sam_df)} alignments")
+        logging.info(f"Extracting secondary sites for {len(sam_df)} alignments")
         
-        # Initialize results dictionary
-        self.repeated_sites: Dict[str, List[SecondarySite]] = {qname: [] for qname in sam_df['QNAME'].unique()}
+        secondary_sites: Dict[str, List[SecondarySite]] = {qname: [] for qname in sam_df['QNAME'].unique()}
         
-        # Add adjusted position column
-        sam_df = sam_df.with_columns(
-            (pl.col('POS') - self.multiplicity_layout[0]).alias('adjusted_pos')
-        )
+        sam_df = sam_df.with_columns((pl.col('POS') - self.multiplicity_layout[0]).alias('adjusted_pos'))
         
-        # Process each transcript only once
         for transcript in sam_df['RNAME'].unique():
-            # Get transcript object and build mapping only once per transcript
             transcript_obj = get_transcript_object(transcript, self.genome, self.genome_scaffolds)
             
             if not transcript_obj:
-                continue  # Skip if transcript not found
-                
+                continue
+            
             try:
-                # Build transcript-to-genomic mapping once per transcript
                 transcript_to_genomic = build_transcript_to_genomic_map(transcript_obj)
             except Exception as e:
                 logging.error(f"Error building transcript mapping for {transcript}: {e}")
                 continue
-                
-            # Filter for current transcript
-            transcript_df = sam_df.filter(pl.col('RNAME') == transcript)
             
-            # Group by QNAME within this transcript
+            transcript_df = sam_df.filter(pl.col('RNAME') == transcript)
             qname_groups = transcript_df.group_by('QNAME')
             
-            # Process each QNAME group using the same transcript mapping
             for qname_group in qname_groups:
                 qname = qname_group[0]
                 qname_df = qname_group[1]
                 
-                # Extract positions for batch processing
                 positions = qname_df['adjusted_pos'].to_list()
+                chrom_positions = get_chromosomal_positions_with_mapping(transcript_obj, transcript_to_genomic, positions, self.k)
                 
-                # Get chromosomal positions using the pre-built mapping
-                chrom_positions = get_chromosomal_positions_with_mapping(
-                    transcript_obj,
-                    transcript_to_genomic,
-                    positions,
-                    self.k
-                )
+                seqs = [get_seq_by_transcript_position(transcript, pos, self.genome, self.k, self.genome_scaffolds) for pos in positions]
                 
-                # Get sequences
-                seqs = []
-                for pos in positions:
-                    seq = get_seq_by_transcript_position(
-                        transcript, 
-                        pos, 
-                        self.genome, 
-                        self.k, 
-                        self.genome_scaffolds
-                    )
-                    seqs.append(seq)
-                
-                # Create a DataFrame with positions and sequences
-                position_seq_df = pl.DataFrame({
-                    'positions': chrom_positions,
-                    'seq': seqs
-                })
-                
-                # Filter out None positions and positions to ignore
-                position_to_ignore = self.candidate_targets[qname].chromosomal_position
-                filtered_df = position_seq_df.filter(
-                    (pl.col('positions').is_not_null()) & 
-                    (pl.col('positions') != position_to_ignore)
-                )
-                
+                position_seq_df = pl.DataFrame({'positions': chrom_positions, 'seq': seqs})
+                filtered_df = position_seq_df.filter(pl.col('positions').is_not_null())
                 
                 if not filtered_df.is_empty():
                     unique_df = filtered_df.unique()
                     
-                    # Add to results as SecondarySite objects
                     for row in unique_df.iter_rows(named=True):
-
-                        
-                        # Check if this site is already in the list (based on position and sequence)
-                        existing_sites = [
-                            site for site in self.repeated_sites[qname] 
-                            if site.chromosomal_position == row['positions'] and site.sequence == row['seq']
-                        ]
-                        
-                        if not existing_sites:
-                            # Add new site only if it doesn't already exist
-                                                    
-                            repeat_site = SecondarySite(
-                                sequence=row['seq'],
-                                chromosomal_position=row['positions'],
-                            )
-                            self.repeated_sites[qname].append(repeat_site)
-                            
-                            
+                        secondary_site = SecondarySite(sequence=row['seq'], chromosomal_position=row['positions'])
+                        secondary_sites[qname].append(secondary_site)
         
+        logging.info(f"Extracted {sum(len(sites) for sites in secondary_sites.values())} secondary sites")
+        return secondary_sites
 
+    def extract_repeated_sites(self, infile: str) -> None:
+        """
+        Extract repeated sites for each target from the Bowtie2 alignment results.
+        Uses the extract_secondary_sites function internally.
+        
+        Parameters:
+            infile (str): Path to the input SAM file from Bowtie2 alignment.
+        """
+        logging.info("Extracting repeated sites")
+        
+        secondary_sites = self._extract_secondary_sites(infile)
+        
+        self.repeated_sites = {qname: [] for qname in secondary_sites.keys()}
+        
+        for qname, sites in secondary_sites.items():
+            position_to_ignore = self.candidate_targets[qname].chromosomal_position
+            
+            for site in sites:
+                if site.chromosomal_position != position_to_ignore:
+                    existing_sites = [
+                        s for s in self.repeated_sites[qname] 
+                        if s.chromosomal_position == site.chromosomal_position and s.sequence == site.sequence
+                    ]
+                    
+                    if not existing_sites:
+                        self.repeated_sites[qname].append(site)
+        
+        logging.info(f"Extracted {sum(len(sites) for sites in self.repeated_sites.values())} repeated sites")
+        
 
     def filter_repeated_sites_by_ddg(
             self,
@@ -575,12 +537,47 @@ class OligoExtractor:
                 total_sites_after = sum(len(sites) for sites in self.repeated_sites.values())
                 
                 logging.info(f"Filtered repeated sites based on ddG: {total_sites_before} → {total_sites_after} sites")
-                print(self.repeated_sites)
             except Exception as e:
                 logging.error(f"Error filtering repeated sites: {e}")
                 raise
 
-    
+    def extract_offtarget_sites(self, infile: str) -> Dict[str, List[SecondarySite]]:
+        """
+        Extract off-target sites for each target from the Bowtie2 alignment results.
+        Off-target sites are secondary sites that are not the main target site
+        or any of the repeated sites.
+        
+        Parameters:
+            infile (str): Path to the input SAM file from Bowtie2 alignment.
+            
+        Returns:
+            Dict[str, List[SecondarySite]]: Dictionary of off-target sites for each QNAME.
+        """
+        logging.info("Extracting off-target sites")
+        
+        # Get all secondary sites
+        secondary_sites = self._extract_secondary_sites(infile)
+
+        
+        for qname, sites in secondary_sites.items():
+            # Get positions to ignore (main site and all repeated sites)
+            main_position = self.candidate_targets[qname].chromosomal_position
+            repeated_positions = [site.chromosomal_position for site in self.repeated_sites[qname]]
+            positions_to_ignore = set([main_position] + repeated_positions)
+            
+            # Filter for off-target sites
+            for site in sites:
+                if site.chromosomal_position not in positions_to_ignore:
+                    # Check if this site is already in the list
+                    existing_sites = [
+                        s for s in self.off_target_sites[qname] 
+                        if s.chromosomal_position == site.chromosomal_position and s.sequence == site.sequence
+                    ]
+                    
+                    if not existing_sites:
+                        self.off_target_sites[qname].append(site)
+
+        logging.info(f"Extracted {sum(len(sites) for sites in self.off_target_sites.values())} off-target sites")
 
         
     def extract_non_prone_multiplicity(self, core_missmatch_count: int, core_consecutive_matches: int) -> None:
