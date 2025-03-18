@@ -296,27 +296,27 @@ def main():
         
     logging.info("-----------------------------------")
 
-    # try:
-    #     bowtie_offtarget_out = run_bowtie(filtered_fasta_path, 
-    #                             index_path,
-    #                             config["BowtieArgs"],
-    #                             os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
-    #                             trim=True,
-    #                             multiplicity_layout=oligo_obj.multiplicity_layout)
-    # except Exception as e:
-    #     logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
-    #     logging.info("Exiting.")
-    #     sys.exit(1)
+    try:
+        bowtie_offtarget_out = run_bowtie(filtered_fasta_path, 
+                                index_path,
+                                config["BowtieArgs"],
+                                os.path.join(config['Bowtie2Dir'], 'bowtie2Home'),
+                                trim=True,
+                                multiplicity_layout=oligo_obj.multiplicity_layout)
+    except Exception as e:
+        logging.error(f"Error running Bowtie2 for specific off-targets: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
 
 
-    # logging.info("-----------------------------------")
+    logging.info("-----------------------------------")
     
-    # try:
-    #     oligo_obj.extract_offtarget_sites(bowtie_offtarget_out)
-    # except Exception as e:
-    #     logging.error(f"Error extracting off-target sites: {e}")
-    #     logging.info("Exiting.")
-    #     sys.exit(1)
+    try:
+        oligo_obj.extract_offtarget_sites(bowtie_offtarget_out)
+    except Exception as e:
+        logging.error(f"Error extracting off-target sites: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
 
     
     # try:

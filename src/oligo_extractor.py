@@ -393,26 +393,36 @@ class OligoExtractor:
                 continue
             
             transcript_df = sam_df.filter(pl.col('RNAME') == transcript)
-            qname_groups = transcript_df.group_by('QNAME')
             
-            for qname_group in qname_groups:
-                qname = qname_group[0]
-                qname_df = qname_group[1]
-                
+            # Group by QNAME within this transcript
+            for qname, qname_df in transcript_df.group_by('QNAME'):
+                # Extract positions for batch processing
                 positions = qname_df['adjusted_pos'].to_list()
-                chrom_positions = get_chromosomal_positions_with_mapping(transcript_obj, transcript_to_genomic, positions, self.k)
                 
-                seqs = [get_seq_by_transcript_position(transcript, pos, self.genome, self.k, self.genome_scaffolds) for pos in positions]
+                # Get chromosomal positions using the pre-built mapping
+                chrom_positions = get_chromosomal_positions_with_mapping(
+                    transcript_obj,
+                    transcript_to_genomic,
+                    positions,
+                    self.k
+                )
                 
-                position_seq_df = pl.DataFrame({'positions': chrom_positions, 'seq': seqs})
-                filtered_df = position_seq_df.filter(pl.col('positions').is_not_null())
+                # Get sequences
+                seqs = [
+                    get_seq_by_transcript_position(transcript, pos, self.genome, self.k, self.genome_scaffolds)
+                    for pos in positions
+                ]
                 
-                if not filtered_df.is_empty():
-                    unique_df = filtered_df.unique()
-                    
-                    for row in unique_df.iter_rows(named=True):
-                        secondary_site = SecondarySite(sequence=row['seq'], chromosomal_position=row['positions'])
-                        secondary_sites[qname].append(secondary_site)
+                # Optimize: Pre-filter null positions and use a set for uniqueness
+                valid_pairs = set()
+                for i, (pos, seq) in enumerate(zip(chrom_positions, seqs)):
+                    if pos is not None:  # Filter out null positions
+                        valid_pairs.add((pos, seq))
+                
+                # Create secondary sites from unique pairs
+                for pos, seq in valid_pairs:
+                    secondary_site = SecondarySite(sequence=seq, chromosomal_position=pos)
+                    secondary_sites[qname].append(secondary_site)
         
         logging.info(f"Extracted {sum(len(sites) for sites in secondary_sites.values())} secondary sites")
         return secondary_sites
