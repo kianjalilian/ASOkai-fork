@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple, Dict, Any, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from src.oligo_extractor import TargetSite, SecondarySite
+from src.oligo_extractor import TargetSite, Site
 from pyensembl import Genome
 import time
 import gget
@@ -417,7 +417,7 @@ def run_bowtie(
 
 def build_RNAcofold_in(
     cofold_in: str, 
-    targets: Union[Dict[str, TargetSite], Dict[str, List[SecondarySite]]],
+    targets: Union[Dict[str, TargetSite], Dict[str, List[Site]]],
     reference_targets: Optional[Dict[str, TargetSite]] = None
 ) -> None:
     """
@@ -427,7 +427,7 @@ def build_RNAcofold_in(
         cofold_in (str): Path to the output file for RNAcofold input.
         targets: Either:
             - Dict[str, TargetSite]: For self-folding analysis (sequence with its own reverse complement)
-            - Dict[str, List[SecondarySite]]: For secondary sites analysis (comparing reference to potential 
+            - Dict[str, List[Site]]: For secondary sites analysis (comparing reference to potential 
               secondary sites)
         reference_targets: Optional[Dict[str, TargetSite]]: When using the second mode (list of TargetSites),
             this provides the reference sequences to compare the corresponding oligo (reverse complement) to the secondary sites. If None, the function will expect the

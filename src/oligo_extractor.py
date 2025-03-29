@@ -16,18 +16,19 @@ import logging
 import polars as pl
 import os
 
-class TargetSite(NamedTuple):
+class Site(NamedTuple):
     sequence: str = None
     chromosomal_position: str = None
+    dG: float = None
+    
+    def __len__(self):
+        return len(self.sequence)
+    
+class TargetSite(Site):
     gene_id: str = None
     transcripts: List[str] = None
     exons: List[str] = None
-    dG: float = None
 
-class SecondarySite(NamedTuple):
-    sequence: str = None
-    chromosomal_position: str = None
-    dG: float = None
     
 class OligoExtractor:
     """
@@ -86,8 +87,8 @@ class OligoExtractor:
         self.gc_bounds: Tuple[float, float] = gc_bounds
         self.data_dir: str = data_dir
         self.bowtie_index: str = bowtie_index
-        self.repeated_sites: Dict[str, List[SecondarySite]] = {}
-        self.off_target_sites: Dict[str, List[SecondarySite]] = {}
+        self.repeated_sites: Dict[str, List[Site]] = {}
+        self.off_target_sites: Dict[str, List[Site]] = {}
         self.non_prone_multiplicity: Dict[str, Union[int, float]] = {}
 
         if species == "mus_musculus":
@@ -360,7 +361,7 @@ class OligoExtractor:
             logging.error(f"Error parsing RNAcofold CSV output: {e}")
 
 
-    def _extract_secondary_sites(self, infile: str) -> Dict[str, List[SecondarySite]]:
+    def _extract_secondary_sites(self, infile: str) -> Dict[str, List[Site]]:
         """
         Extract secondary sites for each target from the Bowtie2 alignment results.
         
@@ -368,7 +369,7 @@ class OligoExtractor:
             infile (str): Path to the input SAM file from Bowtie2 alignment.
         
         Returns:
-            Dict[str, List[SecondarySite]]: Dictionary of secondary sites for each QNAME.
+            Dict[str, List[Site]]: Dictionary of secondary sites for each QNAME.
         """
         cols = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ", "QUAL", "ALIGN_SCORE"]
         
@@ -376,7 +377,7 @@ class OligoExtractor:
         
         logging.info(f"Extracting secondary sites for {len(sam_df)} alignments")
         
-        secondary_sites: Dict[str, List[SecondarySite]] = {qname: [] for qname in sam_df['QNAME'].unique()}
+        secondary_sites: Dict[str, List[Site]] = {qname: [] for qname in sam_df['QNAME'].unique()}
         
         sam_df = sam_df.with_columns((pl.col('POS') - self.multiplicity_layout[0]).alias('adjusted_pos'))
         
@@ -421,7 +422,7 @@ class OligoExtractor:
                 
                 # Create secondary sites from unique pairs
                 for pos, seq in valid_pairs:
-                    secondary_site = SecondarySite(sequence=seq, chromosomal_position=pos)
+                    secondary_site = Site(sequence=seq, chromosomal_position=pos)
                     secondary_sites[qname].append(secondary_site)
         
         logging.info(f"Extracted {sum(len(sites) for sites in secondary_sites.values())} secondary sites")
@@ -551,7 +552,7 @@ class OligoExtractor:
                 logging.error(f"Error filtering repeated sites: {e}")
                 raise
 
-    def extract_offtarget_sites(self, infile: str) -> Dict[str, List[SecondarySite]]:
+    def extract_offtarget_sites(self, infile: str) -> Dict[str, List[Site]]:
         """
         Extract off-target sites for each target from the Bowtie2 alignment results.
         Off-target sites are secondary sites that are not the main target site
@@ -561,7 +562,7 @@ class OligoExtractor:
             infile (str): Path to the input SAM file from Bowtie2 alignment.
             
         Returns:
-            Dict[str, List[SecondarySite]]: Dictionary of off-target sites for each QNAME.
+            Dict[str, List[Site]]: Dictionary of off-target sites for each QNAME.
         """
         logging.info("Extracting off-target sites")
         
