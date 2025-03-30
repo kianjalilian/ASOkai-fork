@@ -542,43 +542,43 @@ class OligoExtractor:
                 logging.error(f"Error filtering repeated sites: {e}")
                 raise
 
-    def extract_offtarget_sites(self, infile: str) -> Dict[str, List[Site]]:
-        """
-        Extract off-target sites for each target from the Bowtie2 alignment results.
-        Off-target sites are secondary sites that are not the main target site
-        or any of the repeated sites.
+    # def extract_offtarget_sites(self, infile: str) -> Dict[str, List[Site]]:
+    #     """
+    #     Extract off-target sites for each target from the Bowtie2 alignment results.
+    #     Off-target sites are secondary sites that are not the main target site
+    #     or any of the repeated sites.
         
-        Parameters:
-            infile (str): Path to the input SAM file from Bowtie2 alignment.
+    #     Parameters:
+    #         infile (str): Path to the input SAM file from Bowtie2 alignment.
             
-        Returns:
-            Dict[str, List[Site]]: Dictionary of off-target sites for each QNAME.
-        """
-        logging.info("Extracting off-target sites")
+    #     Returns:
+    #         Dict[str, List[Site]]: Dictionary of off-target sites for each QNAME.
+    #     """
+    #     logging.info("Extracting off-target sites")
         
-        # Get all secondary sites
-        secondary_sites = self._extract_secondary_sites(infile)
+    #     # Get all secondary sites
+    #     secondary_sites = self._extract_secondary_sites(infile)
 
         
-        for qname, sites in secondary_sites.items():
-            # Get positions to ignore (main site and all repeated sites)
-            main_position = self.candidate_targets[qname].chromosomal_position
-            repeated_positions = [site.chromosomal_position for site in self.repeated_sites[qname]]
-            positions_to_ignore = set([main_position] + repeated_positions)
+    #     for qname, sites in secondary_sites.items():
+    #         # Get positions to ignore (main site and all repeated sites)
+    #         main_position = self.candidate_targets[qname].chromosomal_position
+    #         repeated_positions = [site.chromosomal_position for site in self.repeated_sites[qname]]
+    #         positions_to_ignore = set([main_position] + repeated_positions)
             
-            # Filter for off-target sites
-            for site in sites:
-                if site.chromosomal_position not in positions_to_ignore:
-                    # Check if this site is already in the list
-                    existing_sites = [
-                        s for s in self.off_target_sites[qname] 
-                        if s.chromosomal_position == site.chromosomal_position and s.sequence == site.sequence
-                    ]
+    #         # Filter for off-target sites
+    #         for site in sites:
+    #             if site.chromosomal_position not in positions_to_ignore:
+    #                 # Check if this site is already in the list
+    #                 existing_sites = [
+    #                     s for s in self.off_target_sites[qname] 
+    #                     if s.chromosomal_position == site.chromosomal_position and s.sequence == site.sequence
+    #                 ]
                     
-                    if not existing_sites:
-                        self.off_target_sites[qname].append(site)
+    #                 if not existing_sites:
+    #                     self.off_target_sites[qname].append(site)
 
-        logging.info(f"Extracted {sum(len(sites) for sites in self.off_target_sites.values())} off-target sites")
+    #     logging.info(f"Extracted {sum(len(sites) for sites in self.off_target_sites.values())} off-target sites")
 
         
     def extract_non_prone_multiplicity(self, core_missmatch_count: int, core_consecutive_matches: int) -> None:
