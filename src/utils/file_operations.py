@@ -125,25 +125,25 @@ def _filter_transcripts_by_tsl(
         genome (Genome): Genome object that provides transcript details via a transcripts() method.
         tsl_list (List[Optional[int]]): List of allowed transcript support level values (e.g., [1, 2, 3, None]).
     """
-    logging.info("Filtering %s for transcript support levels: %s", genome.annotation_name, tsl_list)
+    logging.info("Filtering %s for transcript support levels: %s", genome.reference_name, tsl_list)
 
     tsl_set = set(tsl_list)
 
     transcript_to_gene = {}
     for t in genome.transcripts():
         if t.support_level in tsl_set:
-            transcript_to_gene[t.id] = t.gene_name
+            transcript_to_gene[t.transcript_id] = t.gene_id
     
     # Process in batches to reduce the number of write operations
     batch_size = 1000
     
     with gzip.open(fasta_gz_in, "rt") as infile, gzip.open(fasta_gz_out, "wt") as outfile:
         batch = []
-        for seq in SeqIO.parse(infile, "fasta"):
+        for seq in SeqIO.parse(infile, "fasta") :
             transcript_id = seq.id.split('.')[0]
             if transcript_id in transcript_to_gene:
                 # Create a new SeqRecord with just the gene name as the description
-                # This will result in a FASTA header like ">seq.id gene_name"
+                # This will result in a FASTA header like ">seq.id gene_id"
                 new_record = SeqRecord(
                     seq.seq,
                     id=seq.id,

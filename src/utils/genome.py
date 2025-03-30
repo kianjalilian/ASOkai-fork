@@ -17,7 +17,8 @@ class Exon:
 class Transcript:
     """Class representing a transcript with exons."""
     def __init__(self, transcript_id: str, gene_id: str, chromosome: str, 
-                 start: int, end: int, strand: str, biotype: Optional[str] = None) -> None:
+                 start: int, end: int, strand: str, biotype: Optional[str] = None,
+                 support_level: Optional[int] = None) -> None:
         self.transcript_id: str = transcript_id
         self.gene_id: str = gene_id
         self.chromosome: str = chromosome
@@ -25,14 +26,18 @@ class Transcript:
         self.end: int = end      # 1-based genomic coordinates
         self.strand: str = strand
         self.biotype: Optional[str] = biotype
+        self.support_level: Optional[int] = support_level  # 1-5 or None
         self.exons: List[Exon] = []
         self._sequence: Optional[str] = None
+        self._genomic_coordinate_map: Optional[Dict[int, int]] = None
     
     def add_exon(self, exon: Exon) -> None:
         """Add an exon to this transcript."""
         self.exons.append(exon)
         # Keep exons sorted by position
         self.exons.sort(key=lambda e: e.start)
+        # Reset the coordinate map since exon structure changed
+        self._genomic_coordinate_map = None
     
     @property
     def sequence(self) -> Optional[str]:
@@ -49,9 +54,21 @@ class Transcript:
         """Get the exon intervals for this transcript."""
         return [(exon.start, exon.end) for exon in self.exons]
     
-    def build_genomic_coordinate_map(self) -> Dict[int, int]:
+    @property
+    def genomic_coordinate_map(self) -> Dict[int, int]:
         """
-        Build a mapping from transcript positions (1-based) to genomic positions (1-based).
+        Get the cached genomic coordinate map, building it if necessary.
+        
+        Returns:
+            Dict[int, int]: Dictionary mapping transcript positions to genomic positions
+        """
+        if self._genomic_coordinate_map is None:
+            self._genomic_coordinate_map = self._build_genomic_coordinate_map()
+        return self._genomic_coordinate_map
+    
+    def _build_genomic_coordinate_map(self) -> Dict[int, int]:
+        """
+        Internal method to build a mapping from transcript positions to genomic positions.
         
         Returns:
             Dict[int, int]: Dictionary mapping transcript positions to genomic positions
@@ -62,18 +79,19 @@ class Transcript:
         mapping: Dict[int, int] = {}
         transcript_pos: int = 1  # 1-based position in transcript
         
-        # Sort exons by genomic position
-        sorted_exons = sorted(self.exons, key=lambda e: e.start)
-        
         if self.strand == '+':
-            # Forward strand: process exons in genomic order
+            # Forward strand: process exons in genomic order (5' to 3')
+            sorted_exons = sorted(self.exons, key=lambda e: e.start)
+            
             for exon in sorted_exons:
                 exon_length = exon.end - exon.start + 1
                 for offset in range(exon_length):
                     mapping[transcript_pos] = exon.start + offset
                     transcript_pos += 1
         else:
-            # Reverse strand: process exons in reverse genomic order but map positions in reverse
+            # Reverse strand: process exons in reverse genomic order (5' to 3' for transcript)
+            sorted_exons = sorted(self.exons, key=lambda e: e.start, reverse=True)
+            
             for exon in sorted_exons:
                 exon_length = exon.end - exon.start + 1
                 for offset in range(exon_length):
@@ -146,7 +164,7 @@ class Transcript:
             List[Optional[str]]: Chromosomal coordinates in format "chrom:start-end:strand"
         """
         # Build mapping from transcript to genomic coordinates
-        mapping = self.build_genomic_coordinate_map()
+        mapping = self.genomic_coordinate_map
         if not mapping:
             return [None] * len(positions)
             
@@ -173,6 +191,26 @@ class Transcript:
                 results.append(None)
                 
         return results
+    
+    def get_chromosomal_position(
+        self, position: int, window_length: int
+        ) -> Optional[str]:
+            """
+            Get chromosomal position for a single position within a transcript.
+            
+            Args:
+                transcript_id (str): The ID of the transcript
+                position (int): 1-based position within the transcript
+                window_length (int): Length of the window starting at the position
+                
+            Returns:
+                Optional[str]: Chromosomal coordinates in format "chrom:start-end:strand"
+            """
+            results = self.get_chromosomal_positions(
+                positions=[position],
+                window_length=window_length
+            )
+            return results[0] if results else None
 
 class Gene:
     """Class representing a gene with transcripts."""
@@ -190,6 +228,24 @@ class Gene:
     def add_transcript(self, transcript: Transcript) -> None:
         """Add a transcript to this gene."""
         self.transcripts.append(transcript)
+    
+    def get_transcripts_by_support_level(self, max_level: Optional[int] = None) -> List[Transcript]:
+        """
+        Get transcripts filtered by support level.
+        
+        Args:
+            max_level (Optional[int]): Maximum support level to include (1-5), 
+                                      or None to include all transcripts
+            
+        Returns:
+            List[Transcript]: List of transcripts with support level less than or equal to max_level,
+                             or all transcripts if max_level is None
+        """
+        if max_level is None:
+            return self.transcripts
+        
+        return [t for t in self.transcripts 
+                if t.support_level is not None and t.support_level <= max_level]
 
 class Genome:
     def __init__(self, reference_name: str, annotation_version: Optional[str] = None,
@@ -311,6 +367,21 @@ class Genome:
                     gene_id: Optional[str] = attr_dict.get('gene_id')
                     biotype: Optional[str] = attr_dict.get('transcript_biotype', attr_dict.get('biotype', None))
                     
+                    # Extract support level - could be 'transcript_support_level' or 'tsl'
+                    support_level_str: Optional[str] = attr_dict.get('transcript_support_level', 
+                                                                    attr_dict.get('tsl', None))
+                    support_level: Optional[int] = None
+                    
+                    # Parse support level if it exists
+                    if support_level_str:
+                        # Sometimes formatted as "1 (assigned)", so extract just the number
+                        match = re.match(r'^(\d+)', support_level_str)
+                        if match:
+                            try:
+                                support_level = int(match.group(1))
+                            except ValueError:
+                                pass  # Keep as None if conversion fails
+                    
                     if transcript_id and gene_id:
                         transcript = Transcript(
                             transcript_id=transcript_id,
@@ -319,7 +390,8 @@ class Genome:
                             start=int(start),
                             end=int(end),
                             strand=strand,
-                            biotype=biotype
+                            biotype=biotype,
+                            support_level=support_level
                         )
                         self._transcripts[transcript_id] = transcript
                         

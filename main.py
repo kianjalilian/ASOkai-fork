@@ -479,7 +479,7 @@ def main():
     try:
         oligo_obj = OligoExtractor(str(config["TargetGene"]), 
                                    int(config["EnsembleRelease"]), 
-                                   int(config["GenomeAssembly"]), 
+                                   int(config["GenomeAssembly"]),  
                                    int(config["OligoLen"]),
                                    tuple(map(float, config['GCbound'].split(','))),
                                    str(config["Species"]), 

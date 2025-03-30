@@ -182,8 +182,7 @@ class OligoExtractor:
             
             for kmer_seq, position in kmers_set:
                 # Get chromosomal position using the new class method
-                chrom_pos = self.genome.get_chromosomal_position(
-                    t.transcript_id, 
+                chrom_pos = t.get_chromosomal_position(
                     position, 
                     self.k
                 )
