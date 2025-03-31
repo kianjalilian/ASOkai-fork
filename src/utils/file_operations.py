@@ -221,7 +221,7 @@ def _build_bowtie_index(
     # Prepare the input file based on filtering parameters
     modified_input_path = input_path
     if tsl:
-        tsl_input_path = input_path.replace('.fa.gz', f'{tsl_suffix}.fa.gz')
+        tsl_input_path = input_path.replace('all.fa.gz', f'{tsl_suffix}.fa.gz')
         
         # Check if the TSL-filtered file already exists
         if os.path.exists(tsl_input_path):
@@ -313,12 +313,11 @@ def build_transcriptomic_bowtie_index(
         logging.warning("Transcriptomic input file should typically end with '.all.fa.gz'")
     
     # Add transcriptomic prefix to index name
-    transcriptomic_prefix = f"{index_prefix}_transcriptomic"
     
     return _build_bowtie_index(
         input_path=input_path,
         index_dir=index_dir,
-        index_prefix=transcriptomic_prefix,
+        index_prefix=index_prefix,
         args=args,
         tsl=tsl,
         tsl_list=tsl_list,

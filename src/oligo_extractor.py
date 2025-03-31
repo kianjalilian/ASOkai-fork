@@ -16,22 +16,26 @@ from typing import List, Optional
 class Site:
     sequence: Optional[str] = None
     chromosomal_position: Optional[str] = None
-    dG: Optional[float] = None
     
     def __len__(self):
         return len(self.sequence) if self.sequence else 0
+    
+
 
 @dataclass
 class TargetSite(Site):
     gene_id: Optional[str] = None
     transcripts: Optional[List[str]] = None
     exons: Optional[List[str]] = None
-    
+    dG: Optional[float] = None
+
     def __post_init__(self):
         if self.transcripts is None:
             self.transcripts = []
         if self.exons is None:
             self.exons = []
+
+    
 
 class OligoExtractor:
     """
@@ -83,7 +87,6 @@ class OligoExtractor:
         self.k: int = k
         self.g_assembly: int = g_assembly
         self.e_release: int = e_release
-        self.gene_kmers: List[str] = []
         self.candidate_targets: Dict[str, TargetSite] = {}
         self.multiplicity_layout: List[int] = multiplicity_layout
         self.gc_bounds: Tuple[float, float] = gc_bounds
@@ -219,9 +222,7 @@ class OligoExtractor:
         
         logging.info(f"{len(self.candidate_targets)} {self.k}-mer candidate target sites found.")
         
-        # Extract sequences for later use
-        self.gene_kmers = [oligo.sequence for oligo in self.candidate_targets.values()]
-        
+
         # Write to FASTA file
         outfile = os.path.join(self.data_dir, 'oligos', f"{self.gene_id}_{self.k}mers.fa")
         with open(outfile, "w") as tmp_bowtie_in:
