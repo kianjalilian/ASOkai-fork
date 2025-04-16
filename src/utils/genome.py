@@ -5,6 +5,7 @@ import gzip
 import re
 from typing import Dict, List, Optional, Tuple, Set, Union, Any, Iterator
 import logging
+from dataclasses import dataclass
 
 class Exon:
     """Class representing an exon within a transcript."""
@@ -582,6 +583,27 @@ class Genome:
         except ValueError:
             return None
 
+@dataclass
+class Site:
+    sequence: Optional[str] = None
+    chromosomal_position: Optional[str] = None
+    
+    def __len__(self):
+        return len(self.sequence) if self.sequence else 0
+    
 
+
+@dataclass
+class TargetSite(Site):
+    gene_id: Optional[str] = None
+    transcripts: Optional[List[str]] = None
+    exons: Optional[List[str]] = None
+    dG: Optional[float] = None
+
+    def __post_init__(self):
+        if self.transcripts is None:
+            self.transcripts = []
+        if self.exons is None:
+            self.exons = []
 
 

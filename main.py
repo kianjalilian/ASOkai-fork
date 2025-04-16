@@ -9,6 +9,9 @@ from src.utils.file_operations import (
     run_RNAcofold,
     download_genome,
     )
+from src.utils.sequence_analysis import (
+    find_secondary_sequences,
+    )
 import logging
 from src.oligo_extractor import OligoExtractor
 import configparser
@@ -107,433 +110,6 @@ def setup_environment(config):
     return bowtie_index_name, bowtie_index_dir, genome_data_dir
 
 
-from Bio.Seq import Seq
-from collections import deque
-from functools import partial
-from pybloomfilter import BloomFilter
-import RNA
-
-
-
-def worker_function_old(initial_mutation, target_site, max_ddg, multiplicity_layout, ddg_tolerance):
-    """Worker function that processes a single initial mutation path"""
-    mfe_calculation_time = 0
-    
-    # Calculate core start and end positions
-    core_start = multiplicity_layout[0]
-    core_end = core_start + multiplicity_layout[1]
-    
-    # Generate target sequence as reverse complement
-    target_obj = Seq(target_site)
-    oligo_seq = str(target_obj.reverse_complement())
-    
-    # Set up RNA parameters
-    md = RNA.md()
-    md.temperature = 37.0
-    
-    # Calculate reference MFE
-    reference_duplex = target_site + "&" + oligo_seq
-    fc = RNA.fold_compound(reference_duplex, md)
-    (_, reference_mfe) = fc.mfe()
-    
-    # Define nucleotides and mutable positions
-    nucleotides = ['A', 'C', 'G', 'T']
-    mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
-    
-    # Create local Bloom filter for this worker
-    bloom = BloomFilter(4**len(mutable_positions), 0.01)
-    
-    valid_mutations = []
-    pos, nt = initial_mutation
-    
-    # Start with the first mutation specified for this worker
-    original_nt = oligo_seq[pos]
-    if nt != original_nt:
-        mutated_seq = oligo_seq[:pos] + nt + oligo_seq[pos+1:]
-        bloom.add(mutated_seq)
-        
-        mutated_duplex = target_site + "&" + mutated_seq
-        fc_mut = RNA.fold_compound(mutated_duplex, md)
-        (_, mutated_mfe) = fc_mut.mfe()
-        
-        ddg = mutated_mfe - reference_mfe
-        
-        # Initialize the BFS queue with this mutation if it meets criteria
-        queue = deque([])
-        if ddg <= max_ddg:
-            valid_mutations.append((mutated_seq, ddg))
-            queue.append((mutated_seq, 1, [pos]))
-        elif ddg <= max_ddg + ddg_tolerance:
-            queue.append((mutated_seq, 1, [pos]))
-    
-        # Continue with BFS from this starting point
-        while queue:
-            current_seq, depth, mutated_pos = queue.popleft()
-            
-            for next_pos in mutable_positions:
-                if next_pos in mutated_pos:
-                    continue
-                    
-                original_nt = current_seq[next_pos]
-                
-                for next_nt in nucleotides:
-                    if next_nt == original_nt:
-                        continue
-                    
-                    mutated_seq = current_seq[:next_pos] + next_nt + current_seq[next_pos+1:]
-                    
-                    if mutated_seq in bloom:
-                        continue
-                    
-                    bloom.add(mutated_seq)
-                    
-                    mutated_duplex = target_site + "&" + mutated_seq
-                    fc_mut = RNA.fold_compound(mutated_duplex, md)
-                    (_, mutated_mfe) = fc_mut.mfe()
-                    
-                    ddg = mutated_mfe - reference_mfe
-                    
-                    if ddg <= max_ddg:
-                        valid_mutations.append((mutated_seq, ddg))
-                        
-                        if depth < len(mutable_positions) - 1:
-                            new_mutated_pos = mutated_pos + [next_pos]
-                            queue.append((mutated_seq, depth + 1, new_mutated_pos))
-                    elif ddg <= max_ddg + ddg_tolerance:
-                        if depth < len(mutable_positions) - 1:
-                            new_mutated_pos = mutated_pos + [next_pos]
-                            queue.append((mutated_seq, depth + 1, new_mutated_pos))
-
-    return valid_mutations
-
-def pruned_mutation_search_old(target_site, max_ddg, multiplicity_layout=[4,8,4], ddg_tolerance=0.5, n_processes=None):
-    """
-    Parallel version of pruned_mutation_search using multiprocessing
-    
-    Parameters:
-    - target_site: Original ASO sequence
-    - max_ddg: Maximum allowed difference in dG (tau)
-    - multiplicity_layout: List defining the layout [left_flank, core, right_flank]
-    - ddg_tolerance: Tolerance for pruning
-    - n_processes: Number of processes to use (defaults to CPU count)
-    
-    Returns:
-    - List of (mutated_sequence, ddg) tuples that meet the criteria
-    """
-    
-    # Validate sequence length
-    expected_length = sum(multiplicity_layout)
-    if len(target_site) != expected_length:
-        raise ValueError(f"Sequence length ({len(target_site)}) does not match layout sum ({expected_length})")
-    
-    # Calculate core start and end positions
-    core_start = multiplicity_layout[0]
-    core_end = core_start + multiplicity_layout[1]
-    
-    # Generate target sequence as reverse complement
-    target_obj = Seq(target_site)
-    oligo_seq = str(target_obj.reverse_complement())
-    
-    # Define nucleotides and mutable positions
-    nucleotides = ['A', 'C', 'G', 'T']
-    mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
-    
-    # Create initial mutations to distribute across workers
-    initial_mutations = []
-    for pos in mutable_positions:
-        original_nt = oligo_seq[pos]
-        for nt in nucleotides:
-            if nt != original_nt:
-                initial_mutations.append((pos, nt))
-    
-    logging.info(f"Starting parallel search with {len(initial_mutations)} initial mutations")
-    
-    # Set up multiprocessing
-    if n_processes is None:
-        n_processes = mp.cpu_count()
-    
-    logging.info(f"Using {n_processes} processes")
-    
-    # Create a partial function with fixed parameters
-    worker_partial = partial(
-        worker_function_old,
-        target_site=target_site,
-        max_ddg=max_ddg,
-        multiplicity_layout=multiplicity_layout,
-        ddg_tolerance=ddg_tolerance
-    )
-
-    
-    with mp.Pool(processes=n_processes) as pool:
-        results = pool.map(worker_partial, initial_mutations)
-    
-    # Combine results from all workers
-    all_mutations = set()
-    for result in results:
-        all_mutations.update(result)
-    
-    return list(all_mutations)
-
-def pruned_mutation_search(target_site, max_ddg, multiplicity_layout=[4,8,4], ddg_tolerance=0.5):
-    """
-    Generate mutations with efficient pruning to search the sequence space
-    
-    Parameters:
-    - target_sequence: Original ASO sequence (16-mer)
-    - max_ddg: Maximum allowed difference in dG (tau)
-    - multiplicity_layout: List defining the layout [left_flank, core, right_flank]
-    
-    Returns:
-    - List of (mutated_sequence, ddg) tuples that meet the criteria
-    """
-    # Validate sequence length matches the layout
-    expected_length = sum(multiplicity_layout)
-    if len(target_site) != expected_length:
-        raise ValueError(f"Sequence length ({len(target_site)}) does not match layout sum ({expected_length})")
-    
-    # Calculate core start and end positions
-    core_start = multiplicity_layout[0]
-    core_end = core_start + multiplicity_layout[1]
-    
-    # Generate target sequence as reverse complement of original sequence
-    target_obj = Seq(target_site)
-    oligo_seq = str(target_obj.reverse_complement())
-    
-    # Calculate reference dG using RNAcofold with mfe
-    md = RNA.md()
-    md.temperature = 37.0  # Standard temperature
-    
-    # Create fold compound for the duplex
-    reference_duplex = target_site + "&" + oligo_seq
-    fc = RNA.fold_compound(reference_duplex, md)
-    (_, reference_mfe) = fc.mfe()
-
-    # Define nucleotides for mutation
-    nucleotides = ['A', 'C', 'G', 'T']  # Use 'U' instead of 'T' if working with RNA
-    
-    # Define mutable positions (flanking regions)
-    mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
-    
-    valid_mutations = []
-    
-    # Create Bloom filter to track processed sequences
-    # For a layout [2,12,2], we expect 3^4 = 81 possible mutations
-    # Set capacity higher to account for sequences we'll check but reject
-    bloom = BloomFilter(4**len(mutable_positions), 0.001)
-    
-    # Add original sequence to Bloom filter
-    bloom.add(oligo_seq)
-    
-    # Use breadth-first search for more systematic exploration
-    queue = deque([(oligo_seq, 0, [])])  # (current_sequence, current_depth, mutated_positions)
-    
-    while queue:
-        current_seq, depth, mutated_pos = queue.popleft()
-        
-        for pos in mutable_positions:
-            if pos in mutated_pos:
-                continue
-                
-            original_nt = current_seq[pos]
-            
-            for nt in nucleotides:
-                if nt == original_nt:
-                    continue
-                
-                mutated_seq = current_seq[:pos] + nt + current_seq[pos+1:]
-                
-                if mutated_seq in bloom:
-                    continue
-                
-                bloom.add(mutated_seq)
-                
-                mutated_duplex = target_site + "&" + mutated_seq
-                fc_mut = RNA.fold_compound(mutated_duplex, md)
-                (_, mutated_mfe) = fc_mut.mfe()
-                ddg = mutated_mfe - reference_mfe
-                
-                if ddg <= max_ddg:
-                    valid_mutations.append((mutated_seq, ddg))
-                    
-                    if depth < len(mutable_positions) - 1:
-                        new_mutated_pos = mutated_pos + [pos]
-                        queue.append((mutated_seq, depth + 1, new_mutated_pos))
-                elif ddg <= max_ddg + ddg_tolerance:
-                    # If ddG is within tolerance, add to queue but don't add to valid mutations
-                    if depth < len(mutable_positions) - 1:
-                        new_mutated_pos = mutated_pos + [pos]
-                        queue.append((mutated_seq, depth + 1, new_mutated_pos))
-                # If outside tolerance, prune this branch (don't add to queue)
-    
-    return valid_mutations
-
-# Define worker function at module level instead of inside the batch function
-def _pruned_mutation_worker(item_tuple, max_ddg, multiplicity_layout, ddg_tolerance):
-    """Worker function for processing a single target site in parallel
-    
-    Parameters:
-        item_tuple: Tuple of (target_id, sequence)
-        max_ddg: Maximum allowed difference in dG (tau)
-        multiplicity_layout: Layout defining flanks and core
-        ddg_tolerance: Tolerance for pruning mutations
-        
-    Returns:
-        Tuple of (target_id, list_of_mutations)
-    """
-    target_id, sequence = item_tuple
-    try:
-        # Apply pruned mutation search to the target sequence
-        result = pruned_mutation_search(
-            target_site=sequence,
-            max_ddg=max_ddg,
-            multiplicity_layout=multiplicity_layout,
-            ddg_tolerance=ddg_tolerance
-        )
-        return target_id, result
-    except Exception as e:
-        print(f"Error processing target {target_id}: {e}")
-        return target_id, []
-
-
-def calculate_pruned_mutations_batch(
-    target_sites_dict: dict,
-    max_ddg: float = 5.0,
-    multiplicity_layout: list = [4, 8, 4],
-    ddg_tolerance: float = 0.5,
-    num_processes: int = None,
-    vienna_params_path: str = None,
-    output_fasta_path: str = None  # New parameter for output file
-) -> dict:
-    """
-    Calculate pruned mutation search for multiple target sites in parallel.
-    
-    Parameters:
-        target_sites_dict (dict): Dictionary of target sites with structure {id: sequence}
-                                 or {id: TargetSite} objects with sequence attribute
-        max_ddg (float): Maximum allowed difference in dG (tau) for mutation pruning
-        multiplicity_layout (list): List defining the layout [left_flank, core, right_flank]
-        ddg_tolerance (float): Tolerance for pruning mutations (higher = less pruning)
-        num_processes (int): Number of processes to use for parallelization
-                           If None, will use all available cores
-        vienna_params_path (str): Path to Vienna RNA parameters file
-                                If None, uses default parameters
-        output_fasta_path (str): Path to save mutations in FASTA format
-                                If None, no file will be written
-    
-    Returns:
-        dict: Dictionary mapping each target ID to its list of valid mutations 
-              as (sequence, ddG) tuples
-    """
-    import multiprocessing as mp
-    from tqdm import tqdm
-    from functools import partial
-    import RNA
-    import os
-    
-    # Load Vienna RNA parameters if provided
-    if vienna_params_path:
-        RNA.params_load(vienna_params_path)
-    
-    # If num_processes is None, use all available cores
-    if num_processes is None:
-        num_processes = mp.cpu_count()
-    
-    # Process input dictionary to extract sequences
-    processed_dict = {}
-    for target_id, target in target_sites_dict.items():
-        # If target is a string, use it directly as the sequence
-        if isinstance(target, str):
-            processed_dict[target_id] = target
-        # Otherwise, assume it's a TargetSite object or similar with a sequence attribute
-        else:
-            processed_dict[target_id] = target.sequence
-    
-    # Create a partial function with fixed parameters
-    worker_with_args = partial(
-        _pruned_mutation_worker, 
-        max_ddg=max_ddg,
-        multiplicity_layout=multiplicity_layout,
-        ddg_tolerance=ddg_tolerance
-    )
-    
-    # Create output directory if needed
-    if output_fasta_path:
-        os.makedirs(os.path.dirname(os.path.abspath(output_fasta_path)), exist_ok=True)
-    
-    # Process all targets in parallel with progress bar
-    results = {}
-    try:
-        print(f"Calculating pruned mutations for {len(processed_dict)} targets using {num_processes} processes")
-        
-        with mp.Pool(processes=num_processes) as pool:
-            for target_id, mutations in tqdm(
-                pool.imap(worker_with_args, processed_dict.items()),
-                total=len(processed_dict),
-                desc="Calculating pruned mutations"
-            ):
-                results[target_id] = mutations
-                
-                # Write mutations to FASTA file if path is provided
-                if output_fasta_path and mutations:
-                    with open(output_fasta_path, 'a') as f:
-                        for idx, (seq, ddg) in enumerate(mutations):
-                            mutation_id = f"{target_id}_{idx+1}"
-                            f.write(f">{mutation_id} ddG={ddg:.2f}\n{seq}\n")
-                
-        print(f"Completed pruned mutation calculations for {len(results)} targets")
-        print(f"Found a total of {sum(len(mutations) for mutations in results.values())} valid mutations")
-        
-        if output_fasta_path:
-            print(f"Mutations written to {output_fasta_path}")
-            
-        return results
-    
-    except Exception as e:
-        print(f"Error in parallel processing: {e}")
-        raise
-
-
-# Example usage
-def maintest():
-    import time
-    import numpy as np
-    original_sequence = "TGCCAGTATAGTACAT"  # Your 16-mer ASO
-    max_ddg = 5.0 
-    
-    
-    RNA.params_load("/home/ayat/Repositories/ASODesignPipeline/vienna_dna_rna_params.par")
-
-    start = time.time()
-    mutations = pruned_mutation_search(
-        original_sequence,  
-        max_ddg,
-        [4,8,4],
-        ddg_tolerance=1.0
-    )
-    end = time.time()
-    print(f"Time taken: {end - start:.2f} seconds")
-    print(f"Found {len(mutations)} valid mutations within ddG threshold of {max_ddg} kcal/mol")
-    for seq, ddg in mutations[:10]:  # Print first 10 for brevity
-        print(f"Sequence: {seq}, ddG: {ddg:.2f} kcal/mol")
-    print("-------------------------", flush=True)
-
-    start = time.time()
-    
-    mutations = pruned_mutation_search_old(
-        original_sequence,  
-        max_ddg,
-        [4,8,4],
-        ddg_tolerance=1.0
-    )
-    
-    end = time.time()
-    print(f"Time taken: {end - start:.2f} seconds")
-    print(f"Found {len(mutations)} valid mutations within ddG threshold of {max_ddg} kcal/mol")
-    for seq, ddg in mutations[:10]:  # Print first 10 for brevity
-        print(f"Sequence: {seq}, ddG: {ddg:.2f} kcal/mol")
-    print("-------------------------", flush=True)
-
-    
 
 def main():
     # Setup logging
@@ -568,8 +144,9 @@ def main():
     
     tsl, tsl_list = convert_tsl_list(config["transcriptSupportLevels"])
     
-    logging.info("-----------------------------------")
+
     
+    logging.info("-----------------------------------")
 
     try:
         oligo_obj = OligoExtractor(str(config["TargetGene"]), 
@@ -591,18 +168,8 @@ def main():
         logging.info("Exiting.")
         sys.exit(1)
         
-    logging.info("-----------------------------------")
+        logging.info("-----------------------------------")
     
-    try:             
-        candidate_fasta_path = oligo_obj.extract_candidate_targets()
-  
-    except Exception as e:
-        logging.error(f"Error during oligo extraction: {e}")
-        logging.info("Exiting.")
-        sys.exit(1)
-        
-    logging.info("-----------------------------------")
-
     try: 
         transcriptome_index_path = build_transcriptomic_bowtie_index(cdna_path,
                                         index_dir, 
@@ -628,8 +195,21 @@ def main():
         logging.error(f"Error building Bowtie2 genome index: {e}")
         logging.info("Exiting.")
         sys.exit(1)
-    
+        
+        
     logging.info("-----------------------------------")
+    
+    try:             
+        candidate_fasta_path = oligo_obj.extract_candidate_targets()
+  
+    except Exception as e:
+        logging.error(f"Error during oligo extraction: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
+        
+    logging.info("-----------------------------------")
+
+
 
     # Run Bowtie2 for pre-filtering viable oligos
     try:
@@ -655,24 +235,22 @@ def main():
         
     logging.info("-----------------------------------")
     
-    # try:
-    calculate_pruned_mutations_batch(
-        oligo_obj.candidate_targets,
-        max_ddg=float(config["MaxddG"]),
-        multiplicity_layout=oligo_obj.multiplicity_layout,
-        ddg_tolerance=float(config["ddGTolerance"]),
-        vienna_params_path=config["CofoldParamFile"],
-        num_processes=64,
-        output_fasta_path=os.path.join(config['DataDir'], 'oligos', 'mutations.fa')
-    )
+    try:
+        potential_secondary_sites_path = os.path.join(config['DataDir'], 'oligos', 'mutations.fa')
+        find_secondary_sequences(
+            oligo_obj.candidate_targets,
+            max_ddg=float(config["MaxddG"]),
+            multiplicity_layout=oligo_obj.multiplicity_layout,
+            ddg_tolerance=float(config["ddGTolerance"]),
+            vienna_params_path=config["CofoldParamFile"],
+            output_fasta_path=potential_secondary_sites_path,
+        )
+
+    except Exception as e:
+        logging.error(f"Error calculating pruned mutations: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
     
-    
-    # except Exception as e:
-    #     logging.error(f"Error calculating pruned mutations: {e}")
-    #     logging.info("Exiting.")
-    #     sys.exit(1)
-    
-    sys.exit(0)
         
     logging.info("-----------------------------------")
     
@@ -690,6 +268,8 @@ def main():
         logging.error(f"Error getting binding affinity: {e}")
         logging.info("Exiting.")
         sys.exit(1)
+        
+    logging.info("-----------------------------------")
     
     try:
         oligo_obj.add_dg_to_targets(cofold_out)

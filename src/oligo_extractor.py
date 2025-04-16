@@ -9,33 +9,8 @@ from src.utils.kmer_searcher import KmerSearcher
 import logging
 import polars as pl
 import os
-from dataclasses import dataclass
 from typing import List, Optional
-
-@dataclass
-class Site:
-    sequence: Optional[str] = None
-    chromosomal_position: Optional[str] = None
-    
-    def __len__(self):
-        return len(self.sequence) if self.sequence else 0
-    
-
-
-@dataclass
-class TargetSite(Site):
-    gene_id: Optional[str] = None
-    transcripts: Optional[List[str]] = None
-    exons: Optional[List[str]] = None
-    dG: Optional[float] = None
-
-    def __post_init__(self):
-        if self.transcripts is None:
-            self.transcripts = []
-        if self.exons is None:
-            self.exons = []
-
-    
+from src.utils.genome import TargetSite, Site
 
 class OligoExtractor:
     """
