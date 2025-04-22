@@ -10,7 +10,7 @@ from src.utils.file_operations import (
     download_genome,
     )
 from src.utils.sequence_analysis import (
-    find_secondary_sequences,
+    find_potential_secondary_sites,
     )
 import logging
 from src.oligo_extractor import OligoExtractor
@@ -237,7 +237,7 @@ def main():
     
     try:
         potential_secondary_sites_path = os.path.join(config['DataDir'], 'oligos', 'mutations.fa')
-        find_secondary_sequences(
+        find_potential_secondary_sites(
             oligo_obj.candidate_targets,
             max_ddg=float(config["MaxddG"]),
             multiplicity_layout=oligo_obj.multiplicity_layout,

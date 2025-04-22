@@ -61,16 +61,18 @@ def longest_t_run(seq: str) -> float:
 
 def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4], ddg_tolerance=0.5):
     """
-    Generate mutations using binding energy (dG_binding) with efficient pruning.
+    Generate target site mutations using binding energy (dG_binding) with efficient pruning.
+    Mutations are introduced in the flanking regions of the target site.
+    Binding energy is calculated between the mutated target site and the original oligo.
     
     Parameters:
-    - target_input: Tuple of (target_id, sequence)
+    - target_input: Tuple of (target_id, target_sequence)
     - max_ddg: Maximum allowed difference in dG_binding (tau)
     - multiplicity_layout: List defining the layout [left_flank, core, right_flank]
     - ddg_tolerance: Tolerance for pruning mutations based on dG_binding
     
     Returns:
-    - Tuple of (target_id, reference_binding_dg, list of (mutated_sequence, ddg_binding) tuples)
+    - Tuple of (target_id, reference_binding_dg, list of (mutated_target_sequence, ddg_binding) tuples)
     """
     target_id, target_site = target_input
     
@@ -82,98 +84,110 @@ def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4
         core_start = multiplicity_layout[0]
         core_end = core_start + multiplicity_layout[1]
         
+        # Original Oligo (reverse complement of the original target) - remains constant
         target_obj = Seq(target_site)
         oligo_seq = str(target_obj.reverse_complement())
         
         md = RNA.md()
         md.temperature = 37.0
         
-        # --- Calculate Binding Energy (dG_binding) ---
-        # MFE of individual strands
+        # --- Calculate Reference Binding Energy (Original Target + Original Oligo) ---
+        # MFE of individual strands (original)
         fc_target = RNA.fold_compound(target_site, md)
         (_, target_mfe) = fc_target.mfe()
         
         fc_oligo = RNA.fold_compound(oligo_seq, md)
-        (_, oligo_mfe) = fc_oligo.mfe()
+        (_, oligo_mfe) = fc_oligo.mfe() # This oligo MFE is constant
         
-        # MFE of the duplex
+        # MFE of the reference duplex
         reference_duplex = target_site + "&" + oligo_seq
         fc_duplex = RNA.fold_compound(reference_duplex, md)
         (_, duplex_mfe) = fc_duplex.mfe()
         
         # Reference Binding Energy
         reference_binding_dg = duplex_mfe - (target_mfe + oligo_mfe)
-        # --- End Binding Energy Calculation ---
+        # --- End Reference Binding Energy Calculation ---
 
         nucleotides = ['A', 'C', 'G', 'T']
+        # Mutable positions are in the target_site's flanks
         mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
         
-        valid_mutations = []
-        bloom = BloomFilter(4**len(mutable_positions), 0.001)
-        bloom.add(oligo_seq)
+        valid_mutations = [] # Stores (mutated_target_site, ddg_binding)
         
-        queue = deque([(oligo_seq, 0, [], oligo_mfe)]) # (sequence, depth, mutated_pos, oligo_mfe)
+        # Bloom filter tracks visited *target_site* mutations
+        bloom_capacity = 4**len(mutable_positions) if len(mutable_positions) < 14 else 4**13 # Cap capacity
+        bloom = BloomFilter(bloom_capacity, 0.001) 
+        bloom.add(target_site)
+        
+        # Queue stores (current_target_site, depth, mutated_pos_indices, current_target_mfe)
+        queue = deque([(target_site, 0, [], target_mfe)]) 
         
         while queue:
-            current_seq, depth, mutated_pos, current_oligo_mfe = queue.popleft()
+            current_target_seq, depth, mutated_pos, current_target_mfe = queue.popleft()
             
-            for pos in mutable_positions:
-                if pos in mutated_pos:
+            for pos_index in range(len(mutable_positions)):
+                pos = mutable_positions[pos_index] # Actual position in the sequence
+                
+                if pos_index in mutated_pos: # Check if this *index* in mutable_positions was mutated
                     continue
                     
-                original_nt = current_seq[pos]
+                original_nt = current_target_seq[pos]
                 
                 for nt in nucleotides:
                     if nt == original_nt:
                         continue
                     
-                    mutated_seq = current_seq[:pos] + nt + current_seq[pos+1:]
+                    # Mutate the target site sequence
+                    mutated_target_seq = current_target_seq[:pos] + nt + current_target_seq[pos+1:]
                     
-                    if mutated_seq in bloom:
+                    if mutated_target_seq in bloom:
                         continue
                     
-                    bloom.add(mutated_seq)
+                    bloom.add(mutated_target_seq)
                     
-                    # --- Calculate Mutated Binding Energy ---
-                    # MFE of mutated oligo
-                    fc_mut_oligo = RNA.fold_compound(mutated_seq, md)
-                    (_, mut_oligo_mfe) = fc_mut_oligo.mfe()
+                    # --- Calculate Mutated Binding Energy (Mutated Target + Original Oligo) ---
+                    # MFE of mutated target strand
+                    fc_mut_target = RNA.fold_compound(mutated_target_seq, md)
+                    (_, mut_target_mfe) = fc_mut_target.mfe()
                     
-                    # MFE of mutated duplex
-                    mutated_duplex = target_site + "&" + mutated_seq
+                    # MFE of the mutated duplex (mutated target & original oligo)
+                    mutated_duplex = mutated_target_seq + "&" + oligo_seq
                     fc_mut_duplex = RNA.fold_compound(mutated_duplex, md)
                     (_, mut_duplex_mfe) = fc_mut_duplex.mfe()
                     
-                    # Mutated Binding Energy
-                    mutated_binding_dg = mut_duplex_mfe - (target_mfe + mut_oligo_mfe)
+                    # Mutated Binding Energy (using constant oligo_mfe)
+                    mutated_binding_dg = mut_duplex_mfe - (mut_target_mfe + oligo_mfe)
                     # --- End Mutated Binding Energy Calculation ---
 
                     # Calculate change in binding energy
                     ddg_binding = mutated_binding_dg - reference_binding_dg
                     
                     if ddg_binding <= max_ddg:
-                        # Store ddg_binding instead of ddg_mfe
-                        valid_mutations.append((mutated_seq, ddg_binding)) 
+                        # Store the mutated *target* sequence and its ddg_binding
+                        valid_mutations.append((mutated_target_seq, ddg_binding)) 
                         
                         if depth < len(mutable_positions) - 1:
-                            new_mutated_pos = mutated_pos + [pos]
-                            # Pass mutated oligo mfe to avoid recalculation if needed later (optimization possible)
-                            queue.append((mutated_seq, depth + 1, new_mutated_pos, mut_oligo_mfe)) 
+                            new_mutated_pos_indices = mutated_pos + [pos_index]
+                            queue.append((mutated_target_seq, depth + 1, new_mutated_pos_indices, mut_target_mfe)) 
                     elif ddg_binding <= max_ddg + ddg_tolerance:
+                        # Explore further even if slightly above threshold, but don't save
                         if depth < len(mutable_positions) - 1:
-                            new_mutated_pos = mutated_pos + [pos]
-                            queue.append((mutated_seq, depth + 1, new_mutated_pos, mut_oligo_mfe))
+                            new_mutated_pos_indices = mutated_pos + [pos_index]
+                            queue.append((mutated_target_seq, depth + 1, new_mutated_pos_indices, mut_target_mfe))
         
-        # Return reference binding energy and mutations with ddg_binding
+        # Return reference binding energy and mutations (mutated target sites) with ddg_binding
         return target_id, reference_binding_dg, valid_mutations 
             
+    except ValueError as ve:
+        print(f"Configuration error for target {target_id}: {ve}")
+        return target_id, float('nan'), []
     except Exception as e:
         print(f"Error processing target {target_id}: {e}")
-        # Return reference_binding_dg as None or NaN if calculation failed before this point
+        # Return reference_binding_dg as NaN if calculation failed 
         return target_id, float('nan'), []
 
 
-def find_secondary_sequences(
+def find_potential_secondary_sites(
     target_sites: dict[str, str | TargetSite],
     max_ddg: float = 5.0,
     multiplicity_layout: list = [4, 8, 4],
@@ -183,7 +197,7 @@ def find_secondary_sequences(
     output_fasta_path: str = None
 ) -> dict:
     """
-    Find valid mutations (within max_ddg_binding) for a set of target sites using binding energy.
+    Find potential secondary sites (within max_ddg_binding) for a set of target sites using binding energy.
     
     Parameters:
         target_sites (dict): Dictionary of target sites {id: sequence} or {id: TargetSite}.
