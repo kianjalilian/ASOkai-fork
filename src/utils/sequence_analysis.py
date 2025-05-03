@@ -12,7 +12,7 @@ import math
 
 def longest_at_run(seq: str) -> float:
     """
-    Calculate the proportion occupied by the longest contiguous run of A or T nucleotides.
+    Calculate the longest contiguous run of A or T nucleotides.
 
     Parameters:
         seq (str): The nucleotide sequence.
@@ -31,12 +31,12 @@ def longest_at_run(seq: str) -> float:
             max_at_run = max(max_at_run, current_at_run)
         else:
             current_at_run = 0
-    return max_at_run / len(seq)
+    return max_at_run
 
 
 def longest_t_run(seq: str) -> float:
     """
-    Calculate the proportion occupied by the longest contiguous run of T nucleotides.
+    Calculate the longest contiguous run of T nucleotides.
 
     Parameters:
         seq (str): The nucleotide sequence.
@@ -55,10 +55,10 @@ def longest_t_run(seq: str) -> float:
             max_t_run = max(max_t_run, current_t_run)
         else:
             current_t_run = 0
-    return max_t_run / len(seq)
+    return max_t_run
 
 
-def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4], ddg_tolerance=0.5):
+def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4], ddg_tolerance=0.5, force_core_alignment=True):
     """
     Generate target site mutations using binding energy (dG_binding) with efficient pruning.
     Mutations are introduced in the flanking regions of the target site.
@@ -69,6 +69,7 @@ def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4
     - max_ddg: Maximum allowed difference in dG_binding (tau)
     - multiplicity_layout: List defining the layout [left_flank, core, right_flank]
     - ddg_tolerance: Tolerance for pruning mutations based on dG_binding
+    - force_core_alignment: If True, use constraints to force core region to form base pairs
     
     Returns:
     - Tuple of (target_id, reference_binding_dg, list of (mutated_target_sequence, ddg_binding) tuples)
@@ -90,6 +91,15 @@ def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4
         md = RNA.md()
         md.temperature = 37.0
         
+        # Generate constraint strings if force_core_alignment is enabled
+        constraint_string = None
+        if force_core_alignment:
+            # Create constraint string to force core region to form base pairs
+            # '.' means unconstrained, '|' means must form base pair
+            target_constraint = '.' * multiplicity_layout[0] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[2]
+            oligo_constraint = '.' * multiplicity_layout[2] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[0]
+            constraint_string = target_constraint + '&' + oligo_constraint
+        
         # --- Calculate Reference Binding Energy (Original Target + Original Oligo) ---
         # MFE of individual strands (original)
         fc_target = RNA.fold_compound(target_site, md)
@@ -101,6 +111,11 @@ def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4
         # MFE of the reference duplex
         reference_duplex = target_site + "&" + oligo_seq
         fc_duplex = RNA.fold_compound(reference_duplex, md)
+        
+        # Apply constraints if force_core_alignment is enabled
+        if force_core_alignment and constraint_string:
+            fc_duplex.hc_add_from_db(constraint_string)
+        
         (_, duplex_mfe) = fc_duplex.mfe()
         
         # Reference Binding Energy
@@ -152,6 +167,11 @@ def pruned_mutation_search(target_input, max_ddg=5.0, multiplicity_layout=[4,8,4
                     # MFE of the mutated duplex (mutated target & original oligo)
                     mutated_duplex = mutated_target_seq + "&" + oligo_seq
                     fc_mut_duplex = RNA.fold_compound(mutated_duplex, md)
+                    
+                    # Apply constraints if force_core_alignment is enabled
+                    if force_core_alignment and constraint_string:
+                        fc_mut_duplex.hc_add_from_db(constraint_string)
+                    
                     (_, mut_duplex_mfe) = fc_mut_duplex.mfe()
                     
                     # Mutated Binding Energy (using constant oligo_mfe)
@@ -192,7 +212,8 @@ def find_potential_secondary_sites(
     multiplicity_layout: list = [4, 8, 4],
     ddg_tolerance: float = 0.5,
     num_processes: int = None,
-    output_fasta_path: str = None
+    output_fasta_path: str = None,
+    force_core_alignment: bool = True
 ) -> dict:
     """
     Find potential secondary sites (within max_ddg_binding) for a set of target sites using binding energy.
@@ -204,12 +225,11 @@ def find_potential_secondary_sites(
         ddg_tolerance (float): Tolerance for pruning based on dG_binding.
         num_processes (int): Number of processes for parallelization.
         output_fasta_path (str): Path to save mutations in FASTA format.
+        force_core_alignment (bool): If True, use constraints to force core region to align.
     
     Returns:
         dict: Dictionary mapping target ID to list of valid mutations (sequence, ddG_binding).
     """
-    
-
     
     if num_processes is None:
         num_processes = mp.cpu_count()
@@ -225,7 +245,8 @@ def find_potential_secondary_sites(
         pruned_mutation_search, 
         max_ddg=max_ddg,
         multiplicity_layout=multiplicity_layout,
-        ddg_tolerance=ddg_tolerance
+        ddg_tolerance=ddg_tolerance,
+        force_core_alignment=force_core_alignment
     )
     
     if output_fasta_path:
@@ -249,7 +270,7 @@ def find_potential_secondary_sites(
                 target_id, ref_binding_dg, valid_mutations = result
                 
                 processed_count += 1
-                if processed_count % 1000 == 0:
+                if processed_count % 2 == 0:
                     logging.info(f"Progress: {processed_count}/{len(processed_dict)} targets processed")
                 
                 # Handle potential NaN from worker errors

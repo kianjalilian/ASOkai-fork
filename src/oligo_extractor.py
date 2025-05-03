@@ -453,99 +453,6 @@ class OligoExtractor:
         logging.info(f"Extracted {sum(len(sites) for sites in self.repeated_sites.values())} repeated sites")
         
 
-    # def filter_repeated_sites_by_ddg(
-    #         self,
-    #         cofold_output_path: str,
-    #         min_ddg_threshold: float = 5.0
-    #     ) -> None:
-    #         """
-    #         Filter repeated sites based on ddG values calculated from RNAcofold CSV output.
-            
-    #         ddG is calculated as: dG_binding - dG_self_folding
-    #         where dG_binding is the binding energy between target and repeated site,
-    #         and dG_self_folding is the self-folding energy of the candidate target.
-    #         More negative ddG values indicate stronger differential binding.
-            
-    #         Parameters:
-    #             cofold_output_path (str): Path to the RNAcofold output CSV file with columns including
-    #                                     'seq_id' and 'dG_binding'.
-    #             min_ddg_threshold (float): Minimum ddG threshold for keeping a site (more negative = stronger binding)
-    #                                     Sites with ddG values above this threshold will be filtered out.
-    #         """
-    #         logging.info(f"Filtering repeated sites by ddG threshold {min_ddg_threshold}")
-            
-    #         # Parse RNAcofold CSV results
-    #         try:
-    #             # Read the CSV file using polars
-    #             df = pl.read_csv(cofold_output_path)
-    #             df = df.sort("seq_id")
-                
-    #             # Verify required columns exist
-    #             required_columns = ["seq_id", "dG_binding"]
-    #             missing_columns = [col for col in required_columns if col not in df.columns]
-    #             if missing_columns:
-    #                 logging.error(f"Missing required columns in CSV: {missing_columns}")
-    #                 logging.error(f"Available columns: {df.columns}")
-    #                 return
-
-    #             for row in df.iter_rows(named=True):
-    #                 seq_id, site_idx = str(row["seq_id"]).split('_')
-    #                 site_idx = int(site_idx)
-    #                 try:
-    #                     dg_binding = float(row["dG_binding"]) if row["dG_binding"] is not None else None
-    #                     if dg_binding is not None:
-    #                         self.repeated_sites[seq_id][site_idx].dG = dg_binding
-                            
-    #                 except (ValueError, TypeError) as e:
-    #                     logging.warning(f"Failed to parse dG_binding for {site_idx}: {e}")
-                
-    #             # Count sites before filtering
-    #             total_sites_before = sum(len(sites) for sites in self.repeated_sites.values())
-                
-    #             # Filter sites based on ddG values
-    #             filtered_sites = {}
-    #             for target_id, sites in self.repeated_sites.items():
-    #                 filtered_list = []
-                    
-    #                 # Get the self-folding dG of the candidate target
-    #                 if target_id not in self.candidate_targets:
-    #                     logging.warning(f"No candidate target found for {target_id}, skipping")
-    #                     continue
-                        
-    #                 candidate_target = self.candidate_targets[target_id]
-    #                 if not hasattr(candidate_target, 'dG') or candidate_target.dG is None:
-    #                     logging.warning(f"Candidate target {target_id} has no dG value, skipping")
-    #                     continue
-                        
-    #                 dg_self_folding = candidate_target.dG
-                    
-    #                 # Calculate ddG for each site and filter based on threshold
-    #                 for site in sites:
-    #                     if hasattr(site, 'dG') and site.dG is not None:
-    #                         # Calculate ddG as the difference between binding energy and self-folding energy
-    #                         ddg = site.dG - dg_self_folding
-                            
-    #                         # Keep only sites with ddG below (more negative than) threshold
-    #                         if ddg <= min_ddg_threshold:
-    #                             filtered_list.append(site)
-                                
-    #                         # Log the values for debugging
-    #                         logging.debug(f"Site in {target_id}: dG_binding={site.dG}, dG_self_folding={dg_self_folding}, ddG={ddg}")
-    #                     else:
-    #                         logging.warning(f"Site in {target_id} has no dG value, skipping")
-                    
-    #                 filtered_sites[target_id] = filtered_list
-                
-    #             # Replace the original dictionary with the filtered one
-    #             self.repeated_sites = filtered_sites
-                
-    #             # Count sites after filtering
-    #             total_sites_after = sum(len(sites) for sites in self.repeated_sites.values())
-                
-    #             logging.info(f"Filtered repeated sites based on ddG: {total_sites_before} → {total_sites_after} sites")
-    #         except Exception as e:
-    #             logging.error(f"Error filtering repeated sites: {e}")
-    #             raise
 
     def extract_offtarget_sites(self, infile: str) -> Dict[str, List[Site]]:
         """
@@ -629,9 +536,9 @@ class OligoExtractor:
                 'target': candidate.sequence,
                 'absolute_loc': chromosomal_position,
                 'oligo_reverse_comp': oligo_reverse_comp,
-                'oligo_gc_content': gc_fraction(candidate.sequence),
-                'oligo_longest_at_run': longest_at_run(candidate.sequence),
-                'oligo_longest_t_run': longest_t_run(candidate.sequence),
+                'oligo_GC_content': gc_fraction(oligo_reverse_comp),
+                'oligo_AT_run': longest_at_run(oligo_reverse_comp),
+                'oligo_T_run': longest_t_run(oligo_reverse_comp),
                 'repeated_sites_multiplicity': len(self.repeated_sites.get(idx, [])),
                 'off_targets_multiplicity': len(self.off_target_sites.get(idx, [])),
                 'dG_binding': candidate.dG,
