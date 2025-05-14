@@ -600,6 +600,7 @@ class TargetSite(Site):
     exons: Optional[List[Exon]] = None
     dG: Optional[float] = None
     oligo_dG: Optional[float] = None # dG of the homodimer of the oligo(reverse complement of the target site)
+    pedersen_steady_state: Optional[float] = None # percentage of target gene in steady state of the Pedersen model
 
     def __post_init__(self):
         if self.transcripts is None:

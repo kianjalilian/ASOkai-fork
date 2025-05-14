@@ -392,17 +392,17 @@ def admissible_E_roots(vprod: float, k_degrad: float, k_OpT: float, k_OT: float,
     Find admissible real, non-negative quartic roots that keep denominators non-zero.
     
     Args:
-        vprod: Production rate
-        k_degrad: Degradation rate
-        k_OpT: Rate constant for O + T reaction
-        k_OT: Rate constant for OT formation
-        k_OC: Rate constant for OC formation
-        k_OTpE: Rate constant for OT + E reaction
-        k_OTE: Rate constant for OTE formation
-        k_OCE: Rate constant for OCE formation
-        k_cleav: Cleavage rate
-        E_ini: Initial enzyme concentration
-        O_ini: Initial oligo concentration
+        vprod: Production of target (v_prod)
+        k_degrad: Degradation of target (k_T→∅)
+        k_OpT: Association rate of the OT complex (k_O+T→OT)
+        k_OT: Association rate of the OT complex (k_O+T→OT)
+        k_OC: Association rate of the OC complex (derived from α and k_OT)
+        k_OTpE: Association rate of the OTE complex (k_OT+E→OTE)
+        k_OTE: Dissociation constant of the OTE complex (K_dOTE)
+        k_OCE: Association rate of the OCE complex
+        k_cleav: Rate of target cleavage by RNase H (k_OTE→OCE)
+        E_ini: Total RNase H concentration (E_t)
+        O_ini: Total oligonucleotide concentration (O_t)
         atol: Absolute tolerance for numerical comparisons
         rtol: Relative tolerance for numerical comparisons
         verbose: Whether to print debug information
@@ -450,16 +450,17 @@ def get_steady_state_solution_Pedersen(par: Dict[str, float], verbose: bool = Fa
     
     Args:
         par: Dictionary of parameters containing:
-            - vprod: Production rate
-            - k_degrad: Degradation rate
-            - k_OpT: Rate constant for O + T reaction
-            - k_OT: Rate constant for OT formation
-            - k_C or alpha: Rate constant for OC formation
-            - k_OTpE: Rate constant for OT + E reaction
-            - k_OTE: Rate constant for OTE formation
-            - k_cleav: Cleavage rate
-            - E_ini: Initial enzyme concentration
-            - O_ini: Initial oligo concentration
+            - vprod: Production of target (v_prod)
+            - k_degrad: Degradation of target (k_T→∅)
+            - k_OpT: Association rate of the OT complex (k_O+T→OT)
+            - k_OT: Association rate of the OT complex (k_O+T→OT)
+            - k_C: Association rate of the OC complex (k_C = k_OT / alpha)
+            - alpha: Ratio between dissociation rates (α)
+            - k_OTpE: Association rate of the OTE complex (k_OT+E→OTE)
+            - k_OTE: Dissociation constant of the OTE complex (K_dOTE)
+            - k_cleav: Rate of target cleavage by RNase H (k_OTE→OCE)
+            - E_ini: Total RNase H concentration (E_t)
+            - O_ini: Total oligonucleotide concentration (O_t)
         verbose: Whether to print debug information
         
     Returns:

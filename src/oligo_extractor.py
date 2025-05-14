@@ -5,14 +5,19 @@ from Bio.Seq import Seq
 from src.utils.sequence_analysis import (
     longest_at_run,
     longest_t_run,
-    calculate_homodimer_binding_energy
+    calculate_homodimer_binding_energy,
+    get_steady_state_solution_Pedersen,
+    get_target_k_diss,
 )
+from src.utils.time_utils import ProgressTracker, timed
 import logging
 import polars as pl
 import os
 from typing import List, Optional
 from src.utils.genome import TargetSite, Site
 import RNA
+import multiprocessing as mp
+from functools import partial
 
 class OligoExtractor:
     """
@@ -71,7 +76,7 @@ class OligoExtractor:
         self.repeated_sites: Dict[str, List[Site]] = {}
         self.off_target_sites: Dict[str, List[Site]] = {}
         self.non_prone_multiplicity: Dict[str, Union[int, float]] = {}
-
+        self.average_dG: float = 0.0
         if species == "mus_musculus":
             self.species: str = "mus_musculus"
         elif species == "homo_sapiens":
@@ -107,6 +112,7 @@ class OligoExtractor:
         logging.info("Transcript gene references built successfully.")
 
         logging.info("OligoExtractor object created successfully.")
+
 
     def _kmers(self, 
                s: str, 
@@ -220,6 +226,104 @@ class OligoExtractor:
         
         return outfile
 
+    def _get_average_dG(self) -> float:
+        """
+        Calculate the average dG of candidate sites.
+        """
+        self.average_dG = sum(site.dG for site in self.candidate_targets.values()) / len(self.candidate_targets)
+        return self.average_dG
+    
+    @staticmethod
+    def _process_pedersen_target(target_data_tuple: Tuple[str, TargetSite, Dict[str, float], float]) -> Tuple[str, float]:
+        """Static worker function to process a single target for Pedersen analysis."""
+        target_id, target, params, average_dG = target_data_tuple
+        try:
+            # Calculate ddG from average
+            ddG_from_avg = target.dG - average_dG
+            
+            # Get dissociation constant for this target
+            # Ensure params['k_OT'] is present, or handle its absence appropriately
+            k_OT_initial = params.get('k_OT')
+            if k_OT_initial is None:
+                logging.error(f"Missing 'k_OT' in params for target {target_id}")
+                return target_id, 0.0
+                
+            k_diss = get_target_k_diss(k_OT_initial, ddG_from_avg, 37.0)
+            
+            # Create target-specific parameters
+            par_target = params.copy()
+            par_target['k_OT'] = k_diss
+            
+            # Calculate steady state solution
+            steady_state = get_steady_state_solution_Pedersen(par_target)
+            if steady_state is None:
+                logging.warning(f"No steady state solution found for target {target_id}")
+                return target_id, 0.0
+            
+            steady_state_concentration = steady_state['T'] + steady_state['OT'] + steady_state['OTE']
+            logging.debug(f"Target {target_id}: ddG={ddG_from_avg:.2f}, k_diss={k_diss:.2e}, T_steady_state={steady_state_concentration:.2e}")
+            return target_id, steady_state_concentration
+        except KeyError as ke:
+            logging.error(f"Missing key in params for target {target_id}: {str(ke)}")
+            return target_id, 0.0
+        except Exception as e:
+            logging.error(f"Error processing target {target_id} in _process_pedersen_target: {str(e)}")
+            return target_id, 0.0
+        
+    def pedersen_analysis(self, params: Dict[str, float], num_processes: Optional[int] = None) -> None:
+        """
+        Perform Pedersen model analysis on the target sites.
+        
+        Parameters:
+            params (Dict[str, float]): Dictionary containing Pedersen model parameters
+            num_processes (Optional[int]): Number of processes to use. If None, uses CPU count.
+        """
+        
+        
+        if not self.candidate_targets:
+            logging.warning("No candidate targets available for Pedersen analysis")
+            return
+        
+        # Calculate average dG if not already calculated
+        if self.average_dG == 0.0:
+            self._get_average_dG()
+        
+        par_no_oligo = params.copy()
+        par_no_oligo['O_ini'] = 1e-10  # Use a small positive value instead of 0.0
+        
+        steady_state_no_oligo = get_steady_state_solution_Pedersen(par_no_oligo)
+        
+        logging.info(f"Average dG of candidate sites: {self.average_dG:.2f}")
+        logging.info(f"Steady state concentration of candidate sites without oligo: {steady_state_no_oligo['T']:.2e}")
+        # Prepare data for multiprocessing
+        # Each item in tasks will be a tuple: (target_id, target_object, params_dict, average_dG_float)
+        tasks = [
+            (target_id, target_site, params, self.average_dG) 
+            for target_id, target_site in self.candidate_targets.items()
+        ]
+
+        # Set up multiprocessing
+        if num_processes is None:
+            num_processes = mp.cpu_count()
+        
+        logging.info(f"Starting Pedersen analysis using")
+        
+        # Process targets in parallel using the static method
+        with mp.Pool(processes=num_processes) as pool:
+            
+            # Use imap_unordered for potentially faster consumption of results
+            # The worker function is now OligoExtractor._process_pedersen_target
+            results = pool.imap_unordered(OligoExtractor._process_pedersen_target, tasks)
+            
+            for target_id, steady_state_value in results:
+                if target_id in self.candidate_targets: # Ensure target_id is valid
+                    self.candidate_targets[target_id].pedersen_steady_state = steady_state_value/steady_state_no_oligo['T']
+                else:
+                    logging.warning(f"Received result for unknown target_id: {target_id}")
+
+        
+        logging.info("Completed Pedersen analysis")
+
     def filter_candidate_targets(self, in_file: str) -> None:
         """
         Filter the aligned k-mer target sites based on Bowtie2 alignment results.
@@ -277,6 +381,7 @@ class OligoExtractor:
                                  if key in filtered_keys}
         return outfile
 
+    
     def _extract_secondary_sites(self, infile: str) -> Dict[str, List[Site]]:
         """
         Extract secondary sites for each target from the Bowtie2 alignment results.
@@ -429,6 +534,8 @@ class OligoExtractor:
                         self.off_target_sites[seq_id].append(site)
 
         logging.info(f"Extracted {sum(len(sites) for sites in self.off_target_sites.values())} off-target sites")
+        
+
 
     def store_kmer_results(self) -> None:
         """
@@ -465,6 +572,7 @@ class OligoExtractor:
                 'oligo_T_run': longest_t_run(oligo_reverse_comp),
                 'repeated_sites_multiplicity': len(self.repeated_sites.get(idx, [])),
                 'off_targets_multiplicity': len(self.off_target_sites.get(idx, [])),
+                'pedersen_steady_state_target_count': candidate.pedersen_steady_state,
                 'dG_binding': candidate.dG,
                 'oligo_homodimer_dG': candidate.oligo_dG,
                 'transcript_prevalence_ratio': transcript_prevalence_ratio,

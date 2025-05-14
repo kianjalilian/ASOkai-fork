@@ -18,7 +18,8 @@ import os
 import multiprocessing as mp
 import RNA
 import time
-from typing import Optional
+from typing import Optional, Dict
+import json
 
 
 def setup_logging():
@@ -122,6 +123,43 @@ def setup_environment(config, job_name: Optional[str] = None):
 
     return bowtie_index_name, bowtie_index_dir, genome_data_dir
 
+def get_pedersen_params(config_path: str = 'config.ini') -> Dict[str, float]:
+    """
+    Read Pedersen model parameters from JSON file specified in config.ini.
+    
+    Parameters:
+        config_path (str): Path to the config file
+        
+    Returns:
+        Dict[str, float]: Dictionary containing Pedersen model parameters
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+        
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    
+    if 'PedersenParamFile' not in config['DEFAULT']:
+        raise KeyError("PedersenParamFile not found in config file")
+        
+    params_file = config['DEFAULT']['PedersenParamFile']
+    if not os.path.exists(params_file):
+        raise FileNotFoundError(f"Pedersen parameters file not found at {params_file}")
+        
+    with open(params_file, 'r') as f:
+        params = json.load(f)
+        
+    # Convert all values to float to ensure consistency
+    params = {k: float(v) for k, v in params.items()}
+
+    # Add k_C as k_C = k_OT / alpha
+    if 'k_OT' in params and 'alpha' in params and params['alpha'] != 0:
+        params['k_C'] = params['k_OT'] / params['alpha']
+    else:
+        params['k_C'] = None  # or raise an error if preferred
+
+    return params
+
 def main():
     setup_logging()
     logging.info("Pipeline starting up")
@@ -219,6 +257,8 @@ def main():
         
     logging.info("-----------------------------------")
 
+    # Get Pedersen model parameters
+    pedersen_params = get_pedersen_params()
 
     # Run Bowtie2 for pre-filtering viable oligos
     try:
@@ -242,6 +282,14 @@ def main():
     
     logging.info("-----------------------------------")
     
+    try:
+        oligo_obj.pedersen_analysis(pedersen_params, 32)
+    except Exception as e:
+        logging.error(f"Error during Pedersen analysis: {e}")
+        logging.info("Exiting.")
+        sys.exit(1)
+        
+    logging.info("-----------------------------------")
     
     # Build Bowtie2 index for target gene
     try:
