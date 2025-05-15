@@ -98,15 +98,7 @@ def setup_environment(config, job_name: Optional[str] = None):
     return bowtie_index_name, bowtie_index_dir, genome_data_dir
 
 def get_pedersen_params(config_path: str = 'config.ini') -> Dict[str, float]:
-    """
-    Read Pedersen model parameters from JSON file specified in config.ini.
-    
-    Parameters:
-        config_path (str): Path to the config file
-        
-    Returns:
-        Dict[str, float]: Dictionary containing Pedersen model parameters
-    """
+
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found at {config_path}")
         

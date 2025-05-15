@@ -22,10 +22,6 @@ class OligoExtractor:
     A class to extract and analyze oligonucleotide (k-mer) sequences from a specified gene, 
     using data from the Ensembl database and aligning them with Bowtie2.
 
-    This class provides functionalities to:
-    - Extract k-mer sequences from a specified gene.
-    - Align k-mers using Bowtie2 and analyze alignment results to find viable kmers for ASO Design.
-    - Compute result k-mers along with their intrinsic and extrinsic features.
     """
     
     def __init__(self, 
@@ -52,9 +48,9 @@ class OligoExtractor:
             k (int): The length of k-mers (oligonucleotides) to extract.
             gc_bounds (Tuple[float, float]): A tuple specifying the lower and upper bounds for GC content filtering.
             species (str): The species of interest. Must be either "mus_musculus" or "homo_sapiens".
-            gtf_path (str): The file path or URL to the GTF file containing gene annotations.
-            cdna_path (str): The file path or URL to the cDNA FASTA file for transcript sequences.
-            scaffold_gtf_path (Optional[str]): The file path or URL to the scaffold GTF file. This is optional.
+            gtf_path (str): The file path to the GTF file containing gene annotations.
+            cdna_path (str): The file path to the cDNA FASTA file for transcript sequences.
+            scaffold_gtf_path (Optional[str]): The file path to the scaffold GTF file. This is optional.
             multiplicity_layout (List[int]): A list of integers specifying the layout for multiplicity calculation.
             bowtie_index (str): The Bowtie2 index base name for aligning k-mers.
             data_dir (str): The directory path where output files and temporary data are stored.
@@ -75,12 +71,10 @@ class OligoExtractor:
         self.off_target_sites: Dict[str, List[Site]] = {}
         self.non_prone_multiplicity: Dict[str, Union[int, float]] = {}
         self.average_dG: float = 0.0
-        if species == "mus_musculus":
-            self.species: str = "mus_musculus"
-        elif species == "homo_sapiens":
-            self.species: str = "homo_sapiens"
-        else:
+        
+        if species not in ["mus_musculus", "homo_sapiens"]:
             raise ValueError("Only mus_musculus or homo_sapiens species implemented.")
+        self.species = species
         
         self.genome: Genome = Genome(
             reference_name=f'GRC{self.species[0]}{self.genome_assembly}',
@@ -225,6 +219,61 @@ class OligoExtractor:
         
         return outfile
 
+
+    def filter_candidate_targets(self, in_file: str) -> None:
+        """
+        Filter candidate targets based on Bowtie2 alignment results.
+        
+        Args:
+            in_file: Path to Bowtie2 alignment results file
+            
+        Returns:
+            Path to filtered FASTA file
+        """
+        
+        columns = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ"]
+
+        align_file = pl.read_csv(
+            in_file, 
+            separator='\t', 
+            has_header=False, 
+            columns=range(10),
+            new_columns=columns, 
+            truncate_ragged_lines=True
+        )
+        with_genes = align_file.with_columns(
+            pl.col('RNAME')
+            .str.split(".")
+            .list.first()
+            .replace(self.transcript_gene_lookup)
+            .alias('gene_id')
+        )
+        grouped = with_genes.group_by('SEQ').agg([
+            pl.col('gene_id').alias('genes'),
+            pl.col('QNAME').first().alias('seq_id')
+        ])
+        without_target = grouped.with_columns(
+            pl.col('genes').list.set_difference([self.gene_id])
+        )
+        filtered = without_target.filter(pl.col('genes').list.len() == 0)
+        res = filtered.select([pl.exclude('genes')]).sort('seq_id')
+        
+        filtered_oligos = res.select(["seq_id", "SEQ"]).to_numpy().tolist()
+        logging.info(f"Viable {self.k}-mer candidate sites after Bowtie: {len(filtered_oligos)}")
+        
+        outfile = os.path.join(self.data_dir, 'oligos', f"{self.bowtie_index}_{self.gene_id}_{self.k}mers_filtered.fa")
+
+        with open(outfile, "w") as tmp_bowtie_in:
+            for x in filtered_oligos:
+                tmp_bowtie_in.write(f">{x[0]}\n{x[1]}\n")
+        logging.info(f"Filtered kmers written to file: {outfile}")
+
+        filtered_keys = {x[0] for x in filtered_oligos}
+        self.candidate_targets = {key: value 
+                                 for key, value in self.candidate_targets.items() 
+                                 if key in filtered_keys}
+        return outfile
+
     def _get_average_dG(self) -> float:
         """
         Calculate the average dG of candidate sites.
@@ -332,67 +381,6 @@ class OligoExtractor:
 
         
         logging.info("Completed Pedersen analysis")
-
-    def filter_candidate_targets(self, in_file: str) -> None:
-        """
-        Filter candidate targets based on Bowtie2 alignment results.
-        
-        Args:
-            in_file: Path to Bowtie2 alignment results file
-            
-        Returns:
-            Path to filtered FASTA file
-        """
-        
-        columns = ["QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR", "RNEXT", "PNEXT", "TLEN", "SEQ"]
-
-        align_file = pl.read_csv(
-            in_file, 
-            separator='\t', 
-            has_header=False, 
-            columns=range(10),
-            new_columns=columns, 
-            truncate_ragged_lines=True
-        )
-        
-        res = (align_file
-               .group_by('SEQ')
-               .agg([
-                    pl.col('RNAME')
-                      .str.split(".")  
-                      .list.first()
-                      .alias('transcript_id')
-                      .replace(self.transcript_gene_lookup)
-                      .alias('genes'),
-                    pl.col('QNAME')
-                      .first()
-                      .alias('seq_id')
-                ])
-               .with_columns(
-                    pl.col('genes')
-                      .list.set_difference([self.gene_id])
-               )
-               .filter(pl.col('genes').list.len() == 0)
-               .select([pl.exclude('genes')])
-               .sort('seq_id')
-            )
-        
-        filtered_oligos = res.select(["seq_id", "SEQ"]).to_numpy().tolist()
-        logging.info(f"Viable {self.k}-mer candidate sites after Bowtie: {len(filtered_oligos)}")
-        
-        outfile = os.path.join(self.data_dir, 'oligos', f"{self.bowtie_index}_{self.gene_id}_{self.k}mers_filtered.fa")
-
-        with open(outfile, "w") as tmp_bowtie_in:
-            for x in filtered_oligos:
-                tmp_bowtie_in.write(f">{x[0]}\n{x[1]}\n")
-        logging.info(f"Filtered kmers written to file: {outfile}")
-
-        filtered_keys = {x[0] for x in filtered_oligos}
-        self.candidate_targets = {key: value 
-                                 for key, value in self.candidate_targets.items() 
-                                 if key in filtered_keys}
-        return outfile
-
     
     def _extract_secondary_sites(self, infile: str) -> Dict[str, List[Site]]:
         """
@@ -429,7 +417,8 @@ class OligoExtractor:
             
             transcript_df = sam_df.filter(pl.col('RNAME') == transcript_id)
             
-            for qname, qname_df in transcript_df.group_by('QNAME'):
+            for qname_tuple, qname_df in transcript_df.group_by('QNAME'):
+                qname = qname_tuple[0]  # Extract the string from the tuple
                 positions = qname_df['adjusted_pos'].to_list()
                 chrom_positions = transcript_obj.get_chromosomal_positions(positions, self.k)
                 seqs = [
@@ -584,7 +573,7 @@ class OligoExtractor:
                 'oligo_T_run': longest_t_run(oligo_reverse_comp),
                 'repeated_sites_multiplicity': len(self.repeated_sites.get(idx, [])),
                 'off_targets_multiplicity': len(self.off_target_sites.get(idx, [])),
-                'pedersen_steady_state_target_count': candidate.pedersen_steady_state,
+                'pedersen_steady_state_target_percentage': candidate.pedersen_steady_state,
                 'dG_binding': candidate.dG,
                 'oligo_homodimer_dG': candidate.oligo_dG,
                 'transcript_prevalence_ratio': transcript_prevalence_ratio,
