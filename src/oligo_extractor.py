@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple, Dict, Optional, Union
 from Bio.SeqUtils import gc_fraction
-from src.utils.genome import Genome
+from genome_utils import Genome, TargetSite, Site
 from Bio.Seq import Seq
 from src.utils.sequence_analysis import (
     longest_at_run,
@@ -13,7 +13,7 @@ import logging
 import polars as pl
 import os
 from typing import List, Optional
-from src.utils.genome import TargetSite, Site
+from genome_utils.genome import TargetSite, Site
 import RNA
 import multiprocessing as mp
 

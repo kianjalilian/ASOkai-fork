@@ -6,7 +6,7 @@ import os
 from Bio.Seq import Seq
 from collections import deque
 from scipy import constants
-from src.utils.genome import TargetSite
+from genome_utils.genome import TargetSite
 import math
 import numpy as np
 import sympy as sp

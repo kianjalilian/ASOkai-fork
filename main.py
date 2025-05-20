@@ -159,6 +159,9 @@ def main() -> None:
         genome_dir
     )
     
+    # Get Pedersen model parameters
+    pedersen_params = get_pedersen_params()
+    
     tsl, tsl_list = convert_tsl_list(config["transcriptSupportLevels"])
     logging.info("-----------------------------------")
 
@@ -223,8 +226,6 @@ def main() -> None:
         
     logging.info("-----------------------------------")
 
-    # Get Pedersen model parameters
-    pedersen_params = get_pedersen_params()
 
     # Run Bowtie2 for pre-filtering viable oligos
     try:

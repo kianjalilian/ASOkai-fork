@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple, Dict, Any, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from src.utils.genome import Genome, TargetSite, Site
+from genome_utils import Genome, TargetSite, Site
 import time
 import gget
 import urllib.request, urllib.parse
