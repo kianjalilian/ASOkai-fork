@@ -1,0 +1,3 @@
+[submodule "genome_utils"]
+	path = genome_utils
+	url = schliep@gitea.schlieplab.org:arashayat/genome_utils.git
