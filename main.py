@@ -178,6 +178,7 @@ def main() -> None:
                                    [int(x) for x in config["MultiplicityLayout"].split(',')],
                                    index_name, 
                                    os.path.join(config['DataDir']),
+                                   genome_path
                                    ) 
     except Exception as e:
         logging.error(f"Error creating OligoExtractor object: {e}")

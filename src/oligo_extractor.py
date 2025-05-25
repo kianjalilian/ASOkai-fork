@@ -36,7 +36,8 @@ class OligoExtractor:
         scaffold_gtf_path: Optional[str], 
         multiplicity_layout: List[int], 
         bowtie_index: str, 
-        data_dir: str, 
+        data_dir: str,
+        genome_path: str,
         ) -> None:
         """
         Initialize an OligoExtractor object.
@@ -54,6 +55,7 @@ class OligoExtractor:
             multiplicity_layout (List[int]): A list of integers specifying the layout for multiplicity calculation.
             bowtie_index (str): The Bowtie2 index base name for aligning k-mers.
             data_dir (str): The directory path where output files and temporary data are stored.
+            genome_path (str): The file path to the primary assembly FASTA file.
         """
         
         logging.info("Creating OligoExtractor object")
@@ -80,7 +82,8 @@ class OligoExtractor:
             reference_name=f'GRC{self.species[0]}{self.genome_assembly}',
             annotation_version=self.e_release,
             gtf_path=gtf_path,
-            transcript_fasta_paths=cdna_path,            
+            transcript_fasta_paths=cdna_path,
+            primary_assembly_path=genome_path
         )
         
         self.genome.index(overwrite=False)
@@ -95,9 +98,9 @@ class OligoExtractor:
             self.genome_scaffolds = None
 
         # Extract pre-mRNA sequences for all genes
-        pre_mrna_fasta_path = os.path.join(self.data_dir, f'{self.species.capitalize()}.GRC{self.species[0]}.pre_mrna.fa')
-        self.genome.extract_premrna_sequences(pre_mrna_fasta_path)
-        logging.info(f"Pre-mRNA sequences extracted to {pre_mrna_fasta_path}")
+        # Derive pre-mRNA filename from primary assembly filename
+        pre_mrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', '.premrna.all.fa.gz')
+        self.genome.extract_premrna_sequences(output_path=pre_mrna_fasta_path)
 
         self.gene = self.genome.gene_by_id(gene_id=gene_id)
         
@@ -342,6 +345,8 @@ class OligoExtractor:
             num_processes (Optional[int]): Number of processes to use. If None, uses CPU count.
         """
         
+        logging.info(f"Performing Pedersen analysis")
+        
         
         if not self.candidate_targets:
             logging.warning("No candidate targets available for Pedersen analysis")
@@ -354,7 +359,7 @@ class OligoExtractor:
         par_no_oligo = params.copy()
         par_no_oligo['O_ini'] = 1e-10  # Use a small positive value instead of 0.0
         
-        steady_state_no_oligo = get_steady_state_solution_Pedersen(par_no_oligo)
+        steady_state_no_oligo = get_steady_state_solution_Pedersen(par_no_oligo,verbose=True)
         
         logging.info(f"Average dG of candidate sites: {self.average_dG:.2f}")
         logging.info(f"Steady state concentration of candidate sites without oligo: {steady_state_no_oligo['T']:.2e}")
