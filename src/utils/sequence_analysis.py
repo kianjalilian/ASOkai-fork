@@ -367,7 +367,7 @@ def quartic_coeffs(vprod: float, k_degrad: float, k_OpT: float, k_OT: float, k_O
     OCE = (k_cleav / k_OCE) * OTE
     OC = (k_cleav / k_OC) * OTE
     E = E_ini - (1 + k_cleav / k_OCE) * OTE
-    OT = (vprod - (k_degrad + k_cleav) * OTE - k_degrad * (k_degrad + k_OTE + k_cleav) * OTE / (k_OTpE * (E_ini - (1 + k_cleav / k_OCE) * OTE))) / k_degrad
+    OT = (k_degrad + k_OTE + k_cleav) * OTE / (k_OTpE * (E_ini - (1 + k_cleav / k_OCE) * OTE))
     T = (vprod - (k_degrad + k_cleav) * OTE - k_degrad * OT) / k_degrad
     O = ((k_OT + k_degrad) * OT + (k_degrad + k_cleav) * OTE) / (k_OpT * T)
 
@@ -499,7 +499,7 @@ def get_steady_state_solution_Pedersen(par: Dict[str, float], verbose: bool = Fa
                 OCE = (k_cleav / k_OCE) * E_star
                 OC = (k_cleav / k_OC) * E_star
                 E = E_ini - (1 + k_cleav / k_OCE) * E_star
-                OT = (vprod - (k_degrad + k_cleav) * E_star - k_degrad * (k_degrad + k_OTE + k_cleav) * E_star / (k_OTpE * (E_ini - (1 + k_cleav / k_OCE) * E_star))) / k_degrad
+                OT = (k_degrad + k_OTE + k_cleav) * E_star / (k_OTpE * (E_ini - (1 + k_cleav / k_OCE) * E_star))
                 T = (vprod - (k_degrad + k_cleav) * E_star - k_degrad * OT) / k_degrad
                 O = ((k_OT + k_degrad) * OT + (k_degrad + k_cleav) * E_star) / (k_OpT * T)
 
