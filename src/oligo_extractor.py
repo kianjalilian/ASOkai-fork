@@ -359,7 +359,7 @@ class OligoExtractor:
         par_no_oligo = params.copy()
         par_no_oligo['O_ini'] = 1e-10  # Use a small positive value instead of 0.0
         
-        steady_state_no_oligo = get_steady_state_solution_Pedersen(par_no_oligo,verbose=True)
+        steady_state_no_oligo = get_steady_state_solution_Pedersen(par_no_oligo)
         
         logging.info(f"Average dG of candidate sites: {self.average_dG:.2f}")
         logging.info(f"Steady state concentration of candidate sites without oligo: {steady_state_no_oligo['T']:.2e}")
