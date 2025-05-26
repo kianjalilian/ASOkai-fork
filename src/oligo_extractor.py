@@ -99,10 +99,14 @@ class OligoExtractor:
 
         # Extract pre-mRNA sequences for all genes
         # Derive pre-mRNA filename from primary assembly filename
-        pre_mrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', '.premrna.all.fa.gz')
-        self.genome.extract_premrna_sequences(output_path=pre_mrna_fasta_path)
+        pre_mrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', '.premrna.fa.gz')
+        self.genome.extract_genome_premrna_sequences(output_path=pre_mrna_fasta_path, exclude_genes=self.gene_id)
 
         self.gene = self.genome.gene_by_id(gene_id=gene_id)
+
+        gene_premrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', f'.premrna.{gene_id}.fa.gz')
+        self.gene.pre_mrna_sequence = self.genome.extract_premrna_sequences_per_gene(gene_ids=[gene_id], output_path=gene_premrna_fasta_path)
+        
         
         logging.info(f"Gene name: {self.gene.gene_name}")
         logging.info(f"Gene id: {self.gene_id}")
