@@ -79,43 +79,6 @@ def longest_t_run(seq: str) -> float:
     return max_t_run
 
 
-def convert_tsl_list(tsl_str: str) -> Tuple[bool, Optional[List[Optional[int]]]]:
-    """
-    Convert a string of transcript support levels into a list of integers or None values.
-    
-    Args:
-        tsl_str (str): Comma-separated string of transcript support levels (e.g., "tsl1,tsl2,tslNA")
-        
-    Returns:
-        Tuple[bool, Optional[List[Optional[int]]]]: A tuple containing:
-            - bool: True if specific TSLs were provided, False if all TSLs are included
-            - Optional[List[Optional[int]]]: List of TSL values (1-5 or None for NA)
-    """
-    tsl_tokens = [token.strip() for token in tsl_str.split(',') if token.strip()]
-    converted_tsls = []
-
-    for token in tsl_tokens:
-        if token.lower().startswith("tsl"):
-            value_part = token[3:]
-            if value_part.lower() == "na":
-                converted_tsls.append(None)
-            else:
-                try:
-                    converted_tsls.append(int(value_part))
-                except ValueError:
-                    logging.warning("Invalid transcript support level '%s'; using None.", token)
-                    converted_tsls.append(None)
-        else:
-            try:
-                converted_tsls.append(int(token))
-            except ValueError:
-                logging.warning("Invalid transcript support level '%s'; using None.", token)
-                converted_tsls.append(None)
-
-    all_tsls = [1, 2, 3, 4, 5, None]
-    if converted_tsls == all_tsls:
-        return False, None
-    return True, converted_tsls
 
 
 class SecondarySiteFinder:
