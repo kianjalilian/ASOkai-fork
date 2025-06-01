@@ -109,233 +109,6 @@ def calculate_homodimer_binding_energy(seq: str) -> float:
     return binding_dg
 
 
-def pruned_mutation_search(
-    target_input: Tuple[str, Tuple[str, float]], 
-    max_ddg: float = 5.0, 
-    multiplicity_layout: List[int] = [4,8,4], 
-    ddg_tolerance: float = 0.5, 
-    force_core_alignment: bool = True
-) -> Tuple[str, List[Tuple[str, float]]]:
-    """
-    Generate target site mutations using binding energy (dG_binding) with efficient pruning.
-    Mutations are introduced in the flanking regions of the target site, one position at a time per depth level.
-    Binding energy is calculated between the mutated target site and the original oligo.
-    
-    Parameters:
-        target_input: Tuple of (target_id, (target_sequence, reference_binding_dg))
-        max_ddg: Maximum allowed difference in dG_binding (tau)
-        multiplicity_layout: List defining the layout [left_flank, core, right_flank]
-        ddg_tolerance: Tolerance for pruning mutations based on dG_binding
-        force_core_alignment: If True, use constraints to force core region to form base pairs
-    
-    Returns:
-        Tuple of (target_id, list of (mutated_target_sequence, ddg_binding) tuples)
-    """
-    target_id, target_site_and_reference_binding_dg = target_input
-    target_site, reference_binding_dg = target_site_and_reference_binding_dg
-    
-    try:
-        expected_length = sum(multiplicity_layout)
-        if len(target_site) != expected_length:
-            raise ValueError(f"Sequence length ({len(target_site)}) does not match layout sum ({expected_length})")
-        
-        core_start = multiplicity_layout[0]
-        core_end = core_start + multiplicity_layout[1]
-        
-        target_obj = Seq(target_site)
-        oligo_seq = str(target_obj.reverse_complement())
-        
-        md = RNA.md()
-        md.temperature = 37.0
-        
-        constraint_string = None
-        if force_core_alignment:
-            target_constraint = '.' * multiplicity_layout[0] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[2]
-            oligo_constraint = '.' * multiplicity_layout[2] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[0]
-            constraint_string = target_constraint + '&' + oligo_constraint
-        
-        fc_oligo = RNA.fold_compound(oligo_seq, md)
-        (_, oligo_mfe) = fc_oligo.mfe()
-        
-        nucleotides = ['A', 'C', 'G', 'T']
-        mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
-        
-        valid_mutations_set: Set[Tuple[str, float]] = set()  # Use a set to store unique (sequence, ddg) tuples
-
-        # Queue for BFS at current depth
-        current_level_queue = deque([target_site])
-
-        # Process each depth (each mutable position)
-        for depth_idx in range(len(mutable_positions)):
-            if not current_level_queue:  # No sequences to process at this depth
-                break
-
-            pos_to_mutate = mutable_positions[depth_idx]
-            next_level_queue = deque()
-            # Track unique sequences for next level to avoid duplicates
-            next_level_unique_sequences: Set[str] = set()
-
-            # Process all sequences at current depth
-            while current_level_queue:
-                current_seq = current_level_queue.popleft()
-                
-                # Try all possible nucleotides at current position
-                for nt in nucleotides:
-                    # Create mutated sequence
-                    mutated_seq_list = list(current_seq)
-                    mutated_seq_list[pos_to_mutate] = nt
-                    mutated_target_seq = "".join(mutated_seq_list)
-                    
-                    # Calculate binding energy for mutated sequence
-                    fc_mut_target = RNA.fold_compound(mutated_target_seq, md)
-                    (_, mut_target_mfe) = fc_mut_target.mfe()
-                    
-                    mutated_duplex = mutated_target_seq + "&" + oligo_seq
-                    fc_mut_duplex = RNA.fold_compound(mutated_duplex, md)
-                    if force_core_alignment and constraint_string:
-                        fc_mut_duplex.hc_add_from_db(constraint_string)
-                    (_, mut_duplex_mfe) = fc_mut_duplex.mfe()
-                    
-                    mutated_binding_dg = mut_duplex_mfe - (mut_target_mfe + oligo_mfe)
-                    ddg_binding = mutated_binding_dg - reference_binding_dg
-                    
-                    # Check if this mutation is valid and should be explored further
-                    if ddg_binding <= max_ddg:
-                        # Add to valid mutations if it's not the original sequence
-                        if mutated_target_seq != target_site:
-                            valid_mutations_set.add((mutated_target_seq, ddg_binding))
-                        
-                        # Add to next level queue if not already there
-                        if mutated_target_seq not in next_level_unique_sequences:
-                            next_level_queue.append(mutated_target_seq)
-                            next_level_unique_sequences.add(mutated_target_seq)
-                    
-                    # If within tolerance, explore but don't add to valid mutations
-                    elif ddg_binding <= max_ddg + ddg_tolerance:
-                        if mutated_target_seq not in next_level_unique_sequences:
-                            next_level_queue.append(mutated_target_seq)
-                            next_level_unique_sequences.add(mutated_target_seq)
-            
-            # Update queue for next depth level
-            current_level_queue = next_level_queue
-        
-        # Convert set of valid mutations to list
-        valid_mutations = list(valid_mutations_set)
-        
-        return target_id, valid_mutations
-            
-    except ValueError as ve:
-        logging.error(f"Configuration error for target {target_id}: {ve}")
-        return target_id, []
-    except Exception as e:
-        logging.error(f"Error processing target {target_id}: {e}")
-        return target_id, []
-
-@timed
-def find_potential_secondary_sites(
-    target_sites: Dict[str, Union[str, TargetSite]],
-    max_ddg: float = 5.0,
-    multiplicity_layout: List[int] = [4, 8, 4],
-    ddg_tolerance: float = 0.5,
-    num_processes: Optional[int] = None,
-    output_fasta_path: Optional[str] = None,
-    force_core_alignment: bool = True
-) -> Dict[str, List[Tuple[str, float]]]:
-    """
-    Find potential secondary binding sites for each target site.
-    
-    Args:
-        target_sites (dict): Dictionary of target sites
-        max_ddg (float): Maximum ddG threshold
-        multiplicity_layout (list): Layout for multiplicity calculation
-        ddg_tolerance (float): Tolerance for ddG calculations
-        num_processes (int): Number of processes to use
-        output_fasta_path (str): Path to output FASTA file
-        force_core_alignment (bool): Whether to force core alignment
-        
-    Returns:
-        dict: Dictionary of valid mutations for each target
-    """
-    if num_processes is None:
-        num_processes = mp.cpu_count()
-    
-    processed_dict: Dict[str, Tuple[str, float]] = {}
-    for target_id, target in target_sites.items():
-        processed_dict[target_id] = (target.sequence, target.dG)
-    
-    worker_with_args = partial(
-        pruned_mutation_search, 
-        max_ddg=max_ddg,
-        multiplicity_layout=multiplicity_layout,
-        ddg_tolerance=ddg_tolerance,
-        force_core_alignment=force_core_alignment
-    )
-    
-    if output_fasta_path:
-        # Ensure directory exists, handle potential path issues
-        output_dir = os.path.dirname(os.path.abspath(output_fasta_path))
-        if output_dir: # Check if dirname returned a non-empty string
-             os.makedirs(output_dir, exist_ok=True)
-        # Clear the file if it exists
-        with open(output_fasta_path, 'w') as f:
-            pass # Just opening in 'w' mode clears the file
-
-    results: Dict[str, List[Tuple[str, float]]] = {}
-    try:
-        logging.info(
-            f"Calculating pruned mutations (using dG_binding) for {len(processed_dict)} "
-            f"targets using {num_processes} processes. Max ddG threshold: {max_ddg:.2f} "
-            f"kcal/mol, tolerance: {ddg_tolerance:.2f} kcal/mol"
-        )
-        
-        with mp.Pool(processes=num_processes) as pool:
-            # Use imap_unordered for potentially faster consumption of results
-            processed_count = 0
-            progress = ProgressTracker(len(processed_dict), "Finding secondary sites")
-            
-            for result in pool.imap_unordered(worker_with_args, processed_dict.items()):
-                # Unpack the results: target_id, valid_mutations
-                target_id, valid_mutations = result
-                
-                processed_count += 1
-                progress.update(1)
-                
-                # Handle potential NaN from worker errors
-                if target_id is None:
-                    logging.warning(f"Skipping target {target_id or 'Unknown'} due to calculation error.")
-                    continue
-
-                results[target_id] = valid_mutations
-                
-                if output_fasta_path:
-                    with open(output_fasta_path, 'a') as f:
-                        target_seq, ref_binding_dg = processed_dict[target_id]
-                        
-                        # Write original target sequence with its reference binding energy
-                        f.write(f">{target_id}_0 dG_binding={ref_binding_dg:.2f} (reference)\n{target_seq}\n")
-                        
-                        # Write mutated oligo sequences with their absolute and relative binding energies
-                        for idx, (seq, ddg_binding) in enumerate(valid_mutations):
-                            mutation_id = f"{target_id}_{idx+1}"
-                            # Calculate absolute binding dG for the mutation
-                            mutation_binding_dg = ref_binding_dg + ddg_binding
-                            # Write the mutated oligo sequence (seq)
-                            f.write(f">{mutation_id} dG_binding={mutation_binding_dg:.2f} ddG_binding={ddg_binding:.2f}\n{seq}\n")
-                
-        logging.info(f"Completed pruned mutation calculations for {len(results)} targets")
-        total_mutations = sum(len(muts) for muts in results.values() if muts is not None) # Handle potential None lists
-        logging.info(f"Found a total of {total_mutations} valid mutations based on dG_binding")
-        
-        if output_fasta_path:
-            logging.info(f"Mutations written to {output_fasta_path}")
-            
-        return results
-    
-    except Exception as e:
-        logging.error(f"Error in parallel processing: {e}")
-        # Consider more specific error handling or logging
-        raise # Re-raise the exception after logging
-
 def convert_tsl_list(tsl_str: str) -> Tuple[bool, Optional[List[Optional[int]]]]:
     """
     Convert a string of transcript support levels into a list of integers or None values.
@@ -373,7 +146,257 @@ def convert_tsl_list(tsl_str: str) -> Tuple[bool, Optional[List[Optional[int]]]]
     if converted_tsls == all_tsls:
         return False, None
     return True, converted_tsls
- 
+
+
+class SecondarySiteFinder:
+    """
+    Finds potential secondary binding sites for a given set of target sequences.
+    """
+    def __init__(self,
+                 max_ddg: float = 5.0,
+                 multiplicity_layout: List[int] = [4, 8, 4],
+                 ddg_tolerance: float = 0.5,
+                 num_processes: Optional[int] = None,
+                 force_core_alignment: bool = True):
+        """
+        Initialize the SecondarySiteFinder.
+
+        Args:
+            max_ddg (float): Maximum allowed difference in dG_binding (tau).
+            multiplicity_layout (list): Layout defining [left_flank, core, right_flank].
+            ddg_tolerance (float): Tolerance for pruning mutations based on dG_binding.
+            num_processes (int): Number of processes to use for parallel computation.
+            force_core_alignment (bool): If True, use constraints to force core region to form base pairs.
+        """
+        self.max_ddg = max_ddg
+        self.multiplicity_layout = multiplicity_layout
+        self.ddg_tolerance = ddg_tolerance
+        self.num_processes = num_processes if num_processes is not None else mp.cpu_count()
+        self.force_core_alignment = force_core_alignment
+
+    @staticmethod
+    def _pruned_mutation_search(
+        target_input: Tuple[str, Tuple[str, float]],
+        max_ddg: float = 5.0,
+        multiplicity_layout: List[int] = [4,8,4],
+        ddg_tolerance: float = 0.5,
+        force_core_alignment: bool = True
+    ) -> Tuple[str, List[Tuple[str, float]]]:
+        """
+        Generate target site mutations using binding energy (dG_binding) with efficient pruning.
+        Mutations are introduced in the flanking regions of the target site, one position at a time per depth level.
+        Binding energy is calculated between the mutated target site and the original oligo.
+        
+        Parameters:
+            target_input: Tuple of (target_id, (target_sequence, reference_binding_dg))
+            max_ddg: Maximum allowed difference in dG_binding (tau)
+            multiplicity_layout: List defining the layout [left_flank, core, right_flank]
+            ddg_tolerance: Tolerance for pruning mutations based on dG_binding
+            force_core_alignment: If True, use constraints to force core region to form base pairs
+        
+        Returns:
+            Tuple of (target_id, list of (mutated_target_sequence, ddg_binding) tuples)
+        """
+        target_id, target_site_and_reference_binding_dg = target_input
+        target_site, reference_binding_dg = target_site_and_reference_binding_dg
+        
+        try:
+            expected_length = sum(multiplicity_layout)
+            if len(target_site) != expected_length:
+                raise ValueError(f"Sequence length ({len(target_site)}) does not match layout sum ({expected_length})")
+            
+            core_start = multiplicity_layout[0]
+            core_end = core_start + multiplicity_layout[1]
+            
+            target_obj = Seq(target_site)
+            oligo_seq = str(target_obj.reverse_complement())
+            
+            md = RNA.md()
+            md.temperature = 37.0
+            
+            constraint_string = None
+            if force_core_alignment:
+                target_constraint = '.' * multiplicity_layout[0] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[2]
+                oligo_constraint = '.' * multiplicity_layout[2] + '|' * multiplicity_layout[1] + '.' * multiplicity_layout[0]
+                constraint_string = target_constraint + '&' + oligo_constraint
+            
+            fc_oligo = RNA.fold_compound(oligo_seq, md)
+            (_, oligo_mfe) = fc_oligo.mfe()
+            
+            nucleotides = ['A', 'C', 'G', 'T']
+            mutable_positions = list(range(0, core_start)) + list(range(core_end, len(target_site)))
+            
+            valid_mutations_set: Set[Tuple[str, float]] = set()  # Use a set to store unique (sequence, ddg) tuples
+
+            # Queue for BFS at current depth
+            current_level_queue = deque([target_site])
+
+            # Process each depth (each mutable position)
+            for depth_idx in range(len(mutable_positions)):
+                if not current_level_queue:  # No sequences to process at this depth
+                    break
+
+                pos_to_mutate = mutable_positions[depth_idx]
+                next_level_queue = deque()
+                # Track unique sequences for next level to avoid duplicates
+                next_level_unique_sequences: Set[str] = set()
+
+                # Process all sequences at current depth
+                while current_level_queue:
+                    current_seq = current_level_queue.popleft()
+                    
+                    # Try all possible nucleotides at current position
+                    for nt in nucleotides:
+                        # Create mutated sequence
+                        mutated_seq_list = list(current_seq)
+                        mutated_seq_list[pos_to_mutate] = nt
+                        mutated_target_seq = "".join(mutated_seq_list)
+                        
+                        # Calculate binding energy for mutated sequence
+                        fc_mut_target = RNA.fold_compound(mutated_target_seq, md)
+                        (_, mut_target_mfe) = fc_mut_target.mfe()
+                        
+                        mutated_duplex = mutated_target_seq + "&" + oligo_seq
+                        fc_mut_duplex = RNA.fold_compound(mutated_duplex, md)
+                        if force_core_alignment and constraint_string:
+                            fc_mut_duplex.hc_add_from_db(constraint_string)
+                        (_, mut_duplex_mfe) = fc_mut_duplex.mfe()
+                        
+                        mutated_binding_dg = mut_duplex_mfe - (mut_target_mfe + oligo_mfe)
+                        ddg_binding = mutated_binding_dg - reference_binding_dg
+                        
+                        # Check if this mutation is valid and should be explored further
+                        if ddg_binding <= max_ddg:
+                            # Add to valid mutations if it's not the original sequence
+                            if mutated_target_seq != target_site:
+                                valid_mutations_set.add((mutated_target_seq, ddg_binding))
+                            
+                            # Add to next level queue if not already there
+                            if mutated_target_seq not in next_level_unique_sequences:
+                                next_level_queue.append(mutated_target_seq)
+                                next_level_unique_sequences.add(mutated_target_seq)
+                        
+                        # If within tolerance, explore but don't add to valid mutations
+                        elif ddg_binding <= max_ddg + ddg_tolerance:
+                            if mutated_target_seq not in next_level_unique_sequences:
+                                next_level_queue.append(mutated_target_seq)
+                                next_level_unique_sequences.add(mutated_target_seq)
+                
+                # Update queue for next depth level
+                current_level_queue = next_level_queue
+            
+            # Convert set of valid mutations to list
+            valid_mutations = list(valid_mutations_set)
+            
+            return target_id, valid_mutations
+                
+        except ValueError as ve:
+            logging.error(f"Configuration error for target {target_id}: {ve}")
+            return target_id, []
+        except Exception as e:
+            logging.error(f"Error processing target {target_id}: {e}")
+            return target_id, []
+
+    @timed
+    def find_sites(
+        self,
+        target_sites: Dict[str, Union[str, TargetSite]],
+        output_fasta_path: Optional[str] = None
+    ) -> Dict[str, List[Tuple[str, float]]]:
+        """
+        Find potential secondary binding sites for each target site.
+        
+        Args:
+            target_sites (dict): Dictionary of target sites
+            output_fasta_path (str): Path to output FASTA file
+            
+        Returns:
+            dict: Dictionary of valid mutations for each target
+        """
+        processed_dict: Dict[str, Tuple[str, float]] = {}
+        for target_id, target in target_sites.items():
+            if isinstance(target, TargetSite):
+                processed_dict[target_id] = (target.sequence, target.dG)
+            elif isinstance(target, str): # Assuming if string, dG is not available or is 0.0
+                # This case needs clarification if dG is necessary from a string input
+                # For now, assuming dG is not directly available or is 0.0.
+                # If TargetSite objects are always expected, this branch might not be needed
+                # or should raise an error.
+                # Let's assume we need to calculate its MFE if it's a plain sequence
+                md_temp = RNA.md()
+                md_temp.temperature = 37.0
+                fc_temp = RNA.fold_compound(target, md_temp)
+                (_, mfe_temp) = fc_temp.mfe() # This mfe isn't directly dG_binding, but a placeholder if needed
+                                            # The original code uses target.dG which is dG_binding from upstream
+                logging.warning(f"Target {target_id} is a string. Using MFE as a placeholder for dG. This might not be the intended dG_binding.")
+                processed_dict[target_id] = (target, mfe_temp) # Placeholder dG
+            else:
+                logging.error(f"Unsupported target type for {target_id}: {type(target)}")
+                continue # Skip this target or handle error as appropriate
+        
+        worker_with_args = partial(
+            SecondarySiteFinder._pruned_mutation_search,
+            max_ddg=self.max_ddg,
+            multiplicity_layout=self.multiplicity_layout,
+            ddg_tolerance=self.ddg_tolerance,
+            force_core_alignment=self.force_core_alignment
+        )
+        
+        if output_fasta_path:
+            output_dir = os.path.dirname(os.path.abspath(output_fasta_path))
+            if output_dir:
+                 os.makedirs(output_dir, exist_ok=True)
+            with open(output_fasta_path, 'w') as f:
+                pass
+
+        results: Dict[str, List[Tuple[str, float]]] = {}
+        try:
+            logging.info(
+                f"Calculating pruned mutations (using dG_binding) for {len(processed_dict)} "
+                f"targets using {self.num_processes} processes. Max ddG threshold: {self.max_ddg:.2f} "
+                f"kcal/mol, tolerance: {self.ddg_tolerance:.2f} kcal/mol"
+            )
+            
+            with mp.Pool(processes=self.num_processes) as pool:
+                processed_count = 0
+                progress = ProgressTracker(len(processed_dict), "Finding secondary sites")
+                
+                for result in pool.imap_unordered(worker_with_args, processed_dict.items()):
+                    target_id, valid_mutations = result
+                    processed_count += 1
+                    progress.update(1)
+                    
+                    if target_id is None:
+                        logging.warning(f"Skipping target {target_id or 'Unknown'} due to calculation error.")
+                        continue
+
+                    results[target_id] = valid_mutations
+                    
+                    if output_fasta_path and target_id in processed_dict: # Ensure target_id is valid
+                        with open(output_fasta_path, 'a') as f:
+                            target_seq, ref_binding_dg = processed_dict[target_id]
+                            f.write(f">{target_id}_0 dG_binding={ref_binding_dg:.2f} (reference)\n{target_seq}")
+                            for idx, (seq, ddg_binding) in enumerate(valid_mutations):
+                                mutation_id = f"{target_id}_{idx+1}"
+                                mutation_binding_dg = ref_binding_dg + ddg_binding
+                                f.write(f">{mutation_id} dG_binding={mutation_binding_dg:.2f} ddG_binding={ddg_binding:.2f}\n{seq}")
+                    elif output_fasta_path and target_id not in processed_dict:
+                        logging.warning(f"Could not write FASTA for {target_id} as it's not in processed_dict.")
+
+            logging.info(f"Completed pruned mutation calculations for {len(results)} targets")
+            total_mutations = sum(len(muts) for muts in results.values() if muts is not None)
+            logging.info(f"Found a total of {total_mutations} valid mutations based on dG_binding")
+            
+            if output_fasta_path:
+                logging.info(f"Mutations written to {output_fasta_path}")
+                
+            return results
+        
+        except Exception as e:
+            logging.error(f"Error in parallel processing: {e}")
+            raise
+
+
 class PedersenAnalysis:
     """
     Performs Pedersen model-based kinetic analysis for ASO-target interactions.

@@ -2,16 +2,15 @@
 import argparse
 import sys
 from src.utils.file_operations import (
-    build_genomic_bowtie_index,
     build_transcriptomic_bowtie_index, 
     run_bowtie,
     GenomeDownloader,
     create_job_config_summary,
     )
 from src.utils.sequence_analysis import (
-    find_potential_secondary_sites,
     convert_tsl_list,
     PedersenAnalysis,
+    SecondarySiteFinder,
     )
 from src.kmer_counter import KmerCounter
 import logging
@@ -290,17 +289,21 @@ def main() -> None:
         
     logging.info("-----------------------------------")
     
+    # Calculate potential secondary sites (mutations)
+    potential_secondary_sites_path = os.path.join(data_dir, 'oligos', f"{oligo_obj.gene_id}_potential_secondary_sites.fa")
     try:
-        potential_secondary_sites_path = filtered_fasta_path.replace(".fa", "_potential_secondary_sites.fa")
-        potential_secondary_sites = find_potential_secondary_sites(
-            oligo_obj.candidate_targets,
+        finder = SecondarySiteFinder(
             max_ddg=float(config["OffTargetMaxddG"]),
             multiplicity_layout=oligo_obj.multiplicity_layout,
             ddg_tolerance=float(config["ddGTolerance"]),
-            output_fasta_path=potential_secondary_sites_path,
+            num_processes=config.getint("NumProcesses", mp.cpu_count())
+        )
+        potential_secondary_sites = finder.find_sites(
+            target_sites=oligo_obj.candidate_targets,
+            output_fasta_path=potential_secondary_sites_path
         )
     except Exception as e:
-        logging.error(f"Error calculating pruned mutations: {e}")
+        logging.error(f"Error calculating potential secondary sites: {e}")
         logging.info("Exiting.")
         sys.exit(1)
         
