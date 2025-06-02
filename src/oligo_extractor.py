@@ -71,44 +71,44 @@ class OligoExtractor:
         self.non_prone_multiplicity: Dict[str, Union[int, float]] = {}
         self.average_dG: float = 0.0
         
-        if species not in ["mus_musculus", "homo_sapiens"]:
-            raise ValueError("Only mus_musculus or homo_sapiens species implemented.")
-        self.species = species
+        # if species not in ["mus_musculus", "homo_sapiens"]:
+        #     raise ValueError("Only mus_musculus or homo_sapiens species implemented.")
+        # self.species = species
         
-        self.genome: Genome = Genome(
-            reference_name=f'GRC{self.species[0]}{self.genome_assembly}',
-            annotation_version=self.e_release,
-            gtf_path=gtf_path,
-            transcript_fasta_paths=cdna_path,
-            primary_assembly_path=genome_path
-        )
+        # self.genome: Genome = Genome(
+        #     reference_name=f'GRC{self.species[0]}{self.genome_assembly}',
+        #     annotation_version=self.e_release,
+        #     gtf_path=gtf_path,
+        #     transcript_fasta_paths=cdna_path,
+        #     primary_assembly_path=genome_path
+        # )
         
-        self.genome.index(overwrite=False)
+        # self.genome.index(overwrite=False)
 
-        if scaffold_gtf_path:
-            self.genome_scaffolds: Optional[Genome] = Genome(
-                reference_name=f'GRCh{self.genome_assembly}',
-                gtf_path=scaffold_gtf_path,
-            )
-            self.genome_scaffolds.index()
-        else:
-            self.genome_scaffolds = None
+        # if scaffold_gtf_path:
+        #     self.genome_scaffolds: Optional[Genome] = Genome(
+        #         reference_name=f'GRCh{self.genome_assembly}',
+        #         gtf_path=scaffold_gtf_path,
+        #     )
+        #     self.genome_scaffolds.index()
+        # else:
+        #     self.genome_scaffolds = None
 
         # Extract pre-mRNA sequences for all genes
         # Derive pre-mRNA filename from primary assembly filename
-        pre_mrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', '.premrna.fa.gz')
+        # pre_mrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', '.premrna.fa.gz')
         
-        self.pre_mrna_fasta_path = self.genome.extract_genome_premrna_sequences(output_path=pre_mrna_fasta_path, exclude_genes=self.gene_id)
+        # self.pre_mrna_fasta_path = self.genome.extract_genome_premrna_sequences(output_path=pre_mrna_fasta_path, exclude_genes=self.gene_id)
 
-        self.gene = self.genome.gene_by_id(gene_id=gene_id)
+        # self.gene = self.genome.gene_by_id(gene_id=gene_id)
 
-        gene_premrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', f'.premrna.{gene_id}.fa.gz')
-        premrna_seq = self.genome.extract_premrna_sequences_per_gene(gene_ids=[gene_id], output_path=gene_premrna_fasta_path)
-        self.gene.pre_mrna_sequence = premrna_seq[gene_id]
+        # gene_premrna_fasta_path = genome_path.replace('.dna.primary_assembly.fa.gz', f'.premrna.{gene_id}.fa.gz')
+        # premrna_seq = self.genome.extract_premrna_sequences_per_gene(gene_ids=[gene_id], output_path=gene_premrna_fasta_path)
+        # self.gene.pre_mrna_sequence = premrna_seq[gene_id]
         
         
-        logging.info(f"Gene name: {self.gene.gene_name}")
-        logging.info(f"Gene id: {self.gene_id}")
+        # logging.info(f"Gene name: {self.gene.gene_name}")
+        # logging.info(f"Gene id: {self.gene_id}")
         
         logging.info("Building transcript gene references. This may take a while...")
         self.transcript_gene_lookup: Dict[str, str] = self._get_gene_transcript_mapping()
@@ -133,18 +133,6 @@ class OligoExtractor:
         
         return set(kmers_list)
 
-    def _get_gene_transcript_mapping(self) -> Dict[str, str]:
-        """
-        Create a mapping of transcript IDs to gene information.
-
-        Returns:
-            A dictionary mapping transcript IDs to gene information
-        """
-        all_transcripts = self.genome.transcripts()
-        if self.genome_scaffolds:
-            all_transcripts.extend(self.genome_scaffolds.transcripts())
-        
-        return {t.transcript_id: t.gene_id for t in all_transcripts}
 
     def extract_candidate_targets(self, force_core_alignment: bool = False) -> str:
         """

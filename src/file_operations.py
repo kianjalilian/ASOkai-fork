@@ -1,14 +1,11 @@
 import os
 import gzip
-import shlex
-import subprocess
 import logging
 from typing import Optional, List, Tuple, Dict, Any, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from src.utils.genome_utils import Genome, TargetSite, Site
-import time
 import gget
 import urllib.request, urllib.parse
 from src.utils.time_utils import timed, format_duration
@@ -130,6 +127,7 @@ class GenomeDataManager:
         # Construct reference name for genome-utils
         # Example: GRCm38 for mus_musculus, GRCh38 for homo_sapiens
         if self.species.lower() == "mus_musculus":
+            self.species = "Mus_musculus"
             reference_prefix = "GRCm"
         elif self.species.lower() == "homo_sapiens":
             reference_prefix = "GRCh"
@@ -138,10 +136,10 @@ class GenomeDataManager:
             reference_prefix = f"GRC{self.species[0].upper()}" 
             logging.warning(f"Species '{self.species}' is not 'mus_musculus' or 'homo_sapiens'. Using prefix '{reference_prefix}'. Ensure this matches genome-utils expectations.")
         
-        self.main_reference_name = f'{reference_prefix}{self.genome_assembly}'
-
+        main_reference_name = f'{reference_prefix}{self.genome_assembly}'
+        self.genome_file_prefix = f'{self.species}.{reference_prefix}{self.genome_assembly}'
         self.genome = Genome(
-            reference_name=self.main_reference_name,
+            reference_name=main_reference_name,
             annotation_version=str(self.e_release), # genome-utils might expect string
             gtf_path=self.raw_gtf_path,
             transcript_fasta_paths=self.raw_cdna_path,
@@ -151,12 +149,12 @@ class GenomeDataManager:
         )
         # Index the genome object after initialization (will apply TSL filtering from GTF)
         self.genome.index()
-        logging.info(f"Main genome ('{self.main_reference_name}') indexed. Found {len(self.genome.genes)} genes.")
+        logging.info(f"Main genome ('{main_reference_name}') indexed. Found {len(self.genome.genes)} genes.")
 
         self.genome_scaffolds: Optional[Genome] = None
         if self.raw_scaffold_gtf_path:
             # Assuming scaffold reference name might be different or need a suffix
-            scaffold_reference_name = f'{self.main_reference_name}_scaffolds' 
+            scaffold_reference_name = f'{main_reference_name}_scaffolds' 
             self.genome_scaffolds = Genome(
                 reference_name=scaffold_reference_name,
                 gtf_path=self.raw_scaffold_gtf_path,
@@ -226,6 +224,28 @@ class GenomeDataManager:
         return True, converted_tsls
     
     
+    def _get_gene_transcript_mapping(self) -> Dict[str, str]:
+        """
+        Create a mapping of transcript IDs to gene information.
+        Uses the main genome and scaffold genome objects if available.
+
+        Returns:
+            A dictionary mapping transcript IDs to gene information
+        """
+        all_transcripts = []
+        if self.genome:
+            all_transcripts.extend(self.genome.transcripts) # Use .transcripts property
+        if self.genome_scaffolds:
+            all_transcripts.extend(self.genome_scaffolds.transcripts) # Use .transcripts property
+        
+        mapping = {}
+        for t in all_transcripts:
+            if hasattr(t, 'transcript_id') and hasattr(t, 'gene_id'):
+                 mapping[t.transcript_id] = t.gene_id
+            else:
+                logging.debug(f"Transcript object missing transcript_id or gene_id: {t}")
+        return mapping
+
     def _prepare_tsl_filtered_cdna(self):
         """
         If TSL filtering is active, this method now primarily ensures a TSL-filtered
@@ -317,7 +337,7 @@ class GenomeDataManager:
 
         # 1. Target gene's pre-mRNA
         # Ensure .fa extension, genome-utils might handle .gz internally if input path has it
-        gene_only_fasta_name = f"{self.main_reference_name}.premrna.{self.gene_id}.fa" 
+        gene_only_fasta_name = f"{self.genome_file_prefix}.premrna.{self.gene_id}.fa" 
         self.gene_only_pre_mrna_fasta_path = os.path.join(self.genome_dir, gene_only_fasta_name)
         
         try:
@@ -338,7 +358,7 @@ class GenomeDataManager:
             self.gene_only_pre_mrna_fasta_path = None # Indicate failure
 
         # 2. Other genes' pre-mRNA (all genes excluding the target gene)
-        other_genes_fasta_name = f"{self.main_reference_name}.premrna.all_except_{self.gene_id}.fa"
+        other_genes_fasta_name = f"{self.genome_file_prefix}.premrna.all_except_{self.gene_id}.fa"
         self.other_genes_pre_mrna_fasta_path = os.path.join(self.genome_dir, other_genes_fasta_name)
         
         try:
@@ -446,6 +466,12 @@ class GenomeDataManager:
     def get_other_genes_pre_mrna_fasta_path(self) -> Optional[str]:
         """Path to pre-mRNA FASTA for all genes excluding the target."""
         return self.other_genes_pre_mrna_fasta_path
+
+    def get_transcript_gene_mapping(self) -> Dict[str, str]:
+        """
+        Returns a dictionary mapping transcript IDs to gene IDs.
+        """
+        return self._get_gene_transcript_mapping()
     
     def get_raw_download_paths(self) -> Dict[str, Optional[str]]:
         return {
