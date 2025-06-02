@@ -2,11 +2,11 @@
 import argparse
 import sys
 
-from src.utils.sequence_analysis import (
+from src.sequence_analysis import (
     PedersenAnalysis,
     SecondarySiteFinder,
     )
-from src.utils.file_operations import GenomeDataManager
+from src.file_operations import GenomeDataManager
 from src.kmer_counter import KmerCounter
 import logging
 from src.oligo_extractor import OligoExtractor
