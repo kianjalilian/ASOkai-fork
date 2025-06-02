@@ -5,7 +5,7 @@ from typing import Optional, List, Tuple, Dict, Any, Union
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from src.utils.genome_utils import Genome, TargetSite, Site
+from src.utils.genome_utils import Genome
 import gget
 import urllib.request, urllib.parse
 from src.utils.time_utils import timed, format_duration
@@ -95,7 +95,7 @@ class GenomeDataManager:
                  genome_assembly: int,
                  genome_dir: str,
                  tsl_config_str: Optional[str] = None,
-                 # scaffold_gtf_file_name: Optional[str] = None # Assuming downloader handles this
+                 force_overwrite: bool = False
                  ):
         """
         Manages downloading, processing, and providing paths to essential genome data files.
@@ -105,6 +105,7 @@ class GenomeDataManager:
         self.e_release = e_release
         self.genome_assembly = genome_assembly
         self.genome_dir = genome_dir
+        self.force_overwrite = force_overwrite
 
         logging.info(f"Initializing GenomeDataManager for gene: {self.gene_id}, species: {self.species}, release: {self.e_release}")
 
@@ -175,13 +176,14 @@ class GenomeDataManager:
         # --- File path attributes for prepared files will be populated by _prepare_xxx methods ---
         self.processed_cdna_path: str = self.raw_cdna_path
         self.cdna_excluding_target_path: Optional[str] = None
-        self.gene_only_pre_mrna_fasta_path: Optional[str] = None
-        self.other_genes_pre_mrna_fasta_path: Optional[str] = None
+        self.genes_pre_mrna_fasta_path: Optional[str] = None
+        self.target_gene_transcripts_fasta_path: Optional[str] = None
         
         # --- Run preparation methods ---
         self._prepare_tsl_filtered_cdna()       # Sets self.processed_cdna_path
-        self._prepare_pre_mrna_fastas()         # Sets pre-mRNA paths and loads target gene pre-mRNA sequence
-        self._prepare_cdna_excluding_target()   # Sets self.cdna_excluding_target_path
+        self._prepare_pre_mrna_fastas(genes_to_exclude=[self.gene_id], force=self.force_overwrite) 
+        self._prepare_cdna_fasta_excluding_target()   # Sets self.cdna_excluding_target_path
+        self._prepare_target_gene_transcripts_fasta()         # For specific transcript operations
 
         logging.info("GenomeDataManager initialization complete.")
 
@@ -311,8 +313,11 @@ class GenomeDataManager:
             if count_written > 0:
                 self.processed_cdna_path = potential_path
                 logging.info(f"TSL-filtered cDNA FASTA created with {count_written} transcripts: {self.processed_cdna_path}")
-                
-                
+                # Ensure Genome object uses this newly created TSL-filtered FASTA for its sequences
+                if self.genome:
+                    self.genome.transcript_fasta_paths = [self.processed_cdna_path]
+                    logging.info(f"Genome object updated to use newly created TSL-filtered FASTA: {self.processed_cdna_path}")
+                    self.genome._parse_transcript_fasta() # Re-parse sequences
             else:
                 logging.warning(f"TSL filtering active, but no transcripts were written to {potential_path}. "
                                 "This might be due to no transcripts passing filters or sequences not found in raw cDNA. "
@@ -328,51 +333,95 @@ class GenomeDataManager:
                 self.genome._parse_transcript_fasta()
 
 
-    def _prepare_pre_mrna_fastas(self):
+    def _prepare_pre_mrna_fastas(self, genes_to_exclude: Optional[List[str]] = None, force: bool = False):
         """
-        Prepares two pre-mRNA FASTA files: one for the target gene only,
-        and one for all other genes. Also loads pre-mRNA for the target gene object.
+        Prepares a pre-mRNA FASTA file for genes, potentially excluding specified ones.
+        The path to the generated FASTA file is stored in self.genes_pre_mrna_fasta_path.
+
+        Args:
+            genes_to_exclude: A list of gene IDs to exclude from the FASTA file.
+                              If None or empty, all genes will be included.
+            force: If True, overwrite the FASTA file if it already exists.
+                   If False and the file exists, generation is skipped.
         """
-        logging.info(f"Preparing pre-mRNA FASTA files for gene '{self.gene_id}' and other genes.")
+        logging.info("Preparing pre-mRNA FASTA file...")
 
-        # 1. Target gene's pre-mRNA
-        # Ensure .fa extension, genome-utils might handle .gz internally if input path has it
-        gene_only_fasta_name = f"{self.genome_file_prefix}.premrna.{self.gene_id}.fa" 
-        self.gene_only_pre_mrna_fasta_path = os.path.join(self.genome_dir, gene_only_fasta_name)
+        base_name = f"{self.genome_file_prefix}.premrna"
+        log_message_exclusion_details = ""
+
+        if genes_to_exclude:
+            if len(genes_to_exclude) == 1:
+                excluded_gene_id = genes_to_exclude[0]
+                suffix = f".all_except_{excluded_gene_id}.fa"
+                log_message_exclusion_details = f" (excluding gene '{excluded_gene_id}')"
+            else:
+                suffix = f".all_except_{len(genes_to_exclude)}_genes.fa"
+                log_message_exclusion_details = f" (excluding {len(genes_to_exclude)} genes)"
+        else:  # No genes to exclude
+            suffix = ".all.fa"
+            log_message_exclusion_details = " (all genes)"
         
-        try:
-            target_pre_mrna_sequences = self.genome.extract_premrna_sequences_per_gene(
-                gene_ids=[self.gene_id],
-                output_path=self.gene_only_pre_mrna_fasta_path
+        genes_fasta_name = f"{base_name}{suffix}"
+        # Assuming self.genome_dir is the correct directory for this genome-wide FASTA.
+        target_fasta_path = os.path.join(self.genome_dir, genes_fasta_name)
+
+        logging.info(f"Target pre-mRNA FASTA path: {target_fasta_path}{log_message_exclusion_details}")
+
+        if os.path.exists(target_fasta_path) and not force:
+            logging.info(
+                f"Pre-mRNA FASTA file already exists at {target_fasta_path} and force is False. Skipping generation."
             )
-            if self.gene_id in target_pre_mrna_sequences and hasattr(self.target_gene, 'pre_mrna_sequence'):
-                self.target_gene.pre_mrna_sequence = target_pre_mrna_sequences[self.gene_id]
-                logging.info(f"Target gene ('{self.gene_id}') pre-mRNA sequence loaded and FASTA saved to: {self.gene_only_pre_mrna_fasta_path}")
-            elif self.gene_id not in target_pre_mrna_sequences:
-                 logging.error(f"Could not extract pre-mRNA sequence data for target gene {self.gene_id} from extract_premrna_sequences_per_gene return.")
-            else: # sequence data present, but target_gene object has no attribute
-                 logging.warning(f"Target gene object for {self.gene_id} does not have 'pre_mrna_sequence' attribute to assign to.")
+            self.genes_pre_mrna_fasta_path = target_fasta_path  # Ensure attribute is set
+            return
 
-        except Exception as e:
-            logging.error(f"Error extracting pre-mRNA for target gene {self.gene_id}: {e}")
-            self.gene_only_pre_mrna_fasta_path = None # Indicate failure
-
-        # 2. Other genes' pre-mRNA (all genes excluding the target gene)
-        other_genes_fasta_name = f"{self.genome_file_prefix}.premrna.all_except_{self.gene_id}.fa"
-        self.other_genes_pre_mrna_fasta_path = os.path.join(self.genome_dir, other_genes_fasta_name)
-        
         try:
-            # Assuming extract_genome_premrna_sequences writes to output_path and excludes specified genes
-            self.genome.extract_genome_premrna_sequences(
-                output_path=self.other_genes_pre_mrna_fasta_path,
-                exclude_genes=[self.gene_id] 
-            )
-            logging.info(f"Pre-mRNA FASTA (excluding '{self.gene_id}') saved to: {self.other_genes_pre_mrna_fasta_path}")
-        except Exception as e:
-            logging.error(f"Error extracting pre-mRNA for other genes: {e}")
-            self.other_genes_pre_mrna_fasta_path = None # Indicate failure
+            os.makedirs(self.genome_dir, exist_ok=True)
 
-    def _prepare_cdna_excluding_target(self):
+            records_batch = []
+            batch_size = 1000  # Adjust batch size as needed
+            sequences_written_count = 0
+            
+            # Open in 'w' mode to create/overwrite.
+            # The 'force' logic above determines if we reach this point when file exists.
+            with open(target_fasta_path, 'w') as output_handle:
+                for seq_record in self.genome.yield_premrna_seqrecords(exclude_genes=genes_to_exclude):
+                    records_batch.append(seq_record)
+                    sequences_written_count += 1
+                    if len(records_batch) >= batch_size:
+                        SeqIO.write(records_batch, output_handle, "fasta")
+                        records_batch = []
+                
+                if records_batch:  # Write any remaining records in the last batch
+                    SeqIO.write(records_batch, output_handle, "fasta")
+            
+            if sequences_written_count > 0:
+                logging.info(
+                    f"Successfully generated pre-mRNA FASTA with {sequences_written_count} sequences: {target_fasta_path}"
+                )
+            else:
+                logging.info(
+                    f"Generated pre-mRNA FASTA (0 sequences, possibly all relevant genes were excluded or no genes found): {target_fasta_path}"
+                )
+            self.genes_pre_mrna_fasta_path = target_fasta_path
+
+        except FileNotFoundError as fnf_error:
+            # This typically means the primary assembly FASTA was not found by the Genome class
+            logging.error(f"Error preparing pre-mRNA FASTA: {fnf_error}. Ensure primary assembly path is correct.")
+            self.genes_pre_mrna_fasta_path = None
+        except Exception as e:
+            logging.error(
+                f"An unexpected error occurred while preparing pre-mRNA FASTA for {target_fasta_path}: {e}"
+            )
+            self.genes_pre_mrna_fasta_path = None
+            # Clean up potentially incomplete file
+            if os.path.exists(target_fasta_path):
+                try:
+                    os.remove(target_fasta_path)
+                    logging.info(f"Removed potentially incomplete file: {target_fasta_path}")
+                except OSError as oe:
+                    logging.error(f"Error removing incomplete file {target_fasta_path}: {oe}")
+
+    def _prepare_cdna_fasta_excluding_target(self):
         """
         Creates a cDNA FASTA file that includes all transcripts *except* those from the target gene.
         Uses the (potentially TSL-filtered) self.processed_cdna_path as the reference for transcript sequences.
@@ -418,18 +467,10 @@ class GenomeDataManager:
                     if transcript.transcript_id in target_gene_transcript_ids:
                         continue 
                     
-                    # The TSL check here is a safeguard. Ideally, if the genome was re-indexed with
-                    # a TSL-filtered FASTA, self.genome.transcripts or iterating its IDs would only yield
-                    # TSL-passing transcripts. If not re-indexed, this check is necessary.
+                    # The TSL check here is removed as self.genome.transcripts should already be TSL-filtered.
                     if transcript and hasattr(transcript, 'sequence') and transcript.sequence:
-                        passes_tsl = True # Assume passes unless TSL is active and it fails
-                        if self.tsl_is_active and self.tsl_list_to_keep: 
-                            if not (hasattr(transcript, 'support_level') and transcript.support_level in self.tsl_list_to_keep):
-                                passes_tsl = False
-
-                        if passes_tsl:
-                            f_out.write(f">{transcript.transcript_id}\n{transcript.sequence}\n")
-                            count_written += 1
+                        f_out.write(f">{transcript.transcript_id}\n{transcript.sequence}\n")
+                        count_written += 1
             
             if count_written > 0:
                 logging.info(f"Created cDNA FASTA excluding target gene '{self.gene_id}' with {count_written} transcripts: {self.cdna_excluding_target_path}")
@@ -440,6 +481,72 @@ class GenomeDataManager:
             logging.error(f"Error creating cDNA FASTA excluding target gene: {e}")
             self.cdna_excluding_target_path = None
 
+
+    def _prepare_target_gene_transcripts_fasta(self):
+        """
+        Prepares a FASTA file containing all transcripts for the target gene.
+        Uses transcripts from self.target_gene, which are already TSL and biotype filtered.
+        The path is stored in self.target_gene_transcripts_fasta_path.
+        """
+        if not self.target_gene or not hasattr(self.target_gene, 'transcripts') or not self.target_gene.transcripts:
+            logging.warning(f"Target gene {self.gene_id} has no transcripts. Skipping target gene transcript FASTA creation.")
+            self.target_gene_transcripts_fasta_path = None
+            return
+
+        gene_id_safe = self.gene_id.replace(":", "_").replace(" ", "_")
+        # Use the processed_cdna_path as a base for naming to reflect TSL filtering if applied
+        base_cnda_name_part = os.path.basename(self.processed_cdna_path)
+        if base_cnda_name_part.endswith(".fa.gz"):
+            base_cnda_name_part = base_cnda_name_part[:-len(".fa.gz")]
+        elif base_cnda_name_part.endswith(".fasta.gz"):
+            base_cnda_name_part = base_cnda_name_part[:-len(".fasta.gz")]
+        elif base_cnda_name_part.endswith(".fa"):
+            base_cnda_name_part = base_cnda_name_part[:-len(".fa")]
+        elif base_cnda_name_part.endswith(".fasta"):
+            base_cnda_name_part = base_cnda_name_part[:-len(".fasta")]
+        
+        # Construct a meaningful name
+        # Example: Mus_musculus.GRCm39.cdna.tsl1_tslNA.ENSMUSG00000020275_transcripts.fa
+        output_filename = f"{base_cnda_name_part}.{gene_id_safe}_transcripts.fa"
+        if self.processed_cdna_path.endswith(".gz"): # Preserve compression if original was gzipped
+            output_filename += ".gz"
+        
+        self.target_gene_transcripts_fasta_path = os.path.join(self.genome_dir, output_filename)
+
+        if os.path.exists(self.target_gene_transcripts_fasta_path) and not self.force_overwrite:
+            logging.info(f"Target gene transcript FASTA already exists: {self.target_gene_transcripts_fasta_path}. Skipping.")
+            return
+
+        logging.info(f"Preparing target gene transcript FASTA: {self.target_gene_transcripts_fasta_path}")
+        count_written = 0
+        try:
+            open_func = gzip.open if output_filename.endswith(".gz") else open
+            mode = 'wt' if output_filename.endswith(".gz") else 'w'
+            
+            with open_func(self.target_gene_transcripts_fasta_path, mode) as f_out:
+                for transcript in self.target_gene.transcripts:
+                    if transcript.sequence:
+                        # Create a SeqRecord for proper FASTA formatting if desired, or simple write
+                        # record = SeqRecord(Seq(transcript.sequence), id=transcript.transcript_id, description=f"gene_id={self.gene_id}")
+                        # SeqIO.write(record, f_out, "fasta-2line") # fasta-2line for no wrapping
+                        f_out.write(f">{transcript.transcript_id} gene_id={self.gene_id}\n{transcript.sequence}\n")
+                        count_written += 1
+                    else:
+                        logging.debug(f"Transcript {transcript.transcript_id} for target gene {self.gene_id} has no sequence. Not written.")
+            
+            if count_written > 0:
+                logging.info(f"Target gene transcript FASTA created with {count_written} transcripts: {self.target_gene_transcripts_fasta_path}")
+            else:
+                logging.warning(f"No transcripts written for target gene {self.gene_id} to {self.target_gene_transcripts_fasta_path}. File might be empty.")
+
+        except Exception as e:
+            logging.error(f"Error creating target gene transcript FASTA: {e}")
+            self.target_gene_transcripts_fasta_path = None # Indicate failure
+            if os.path.exists(output_filename):
+                try:
+                    os.remove(output_filename)
+                except OSError as oe:
+                    logging.error(f"Error removing incomplete file {output_filename}: {oe}")
 
     # --- Getter methods ---
     def get_target_gene_object(self) -> Gene:
@@ -459,13 +566,9 @@ class GenomeDataManager:
         """Path to cDNA FASTA excluding target gene's transcripts."""
         return self.cdna_excluding_target_path
 
-    def get_gene_only_pre_mrna_fasta_path(self) -> Optional[str]:
-        """Path to pre-mRNA FASTA for only the target gene."""
-        return self.gene_only_pre_mrna_fasta_path
-
-    def get_other_genes_pre_mrna_fasta_path(self) -> Optional[str]:
+    def get_genes_pre_mrna_fasta_path(self) -> Optional[str]:
         """Path to pre-mRNA FASTA for all genes excluding the target."""
-        return self.other_genes_pre_mrna_fasta_path
+        return self.genes_pre_mrna_fasta_path
 
     def get_transcript_gene_mapping(self) -> Dict[str, str]:
         """
@@ -479,7 +582,11 @@ class GenomeDataManager:
             "cdna": self.raw_cdna_path,
             "genome": self.raw_genome_path,
             "scaffold_gtf": self.raw_scaffold_gtf_path
-        } 
+        }
+
+    def get_target_gene_transcripts_fasta_path(self) -> Optional[str]:
+        """Path to FASTA file containing transcripts of the target gene."""
+        return self.target_gene_transcripts_fasta_path
 
 
 

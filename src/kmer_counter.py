@@ -287,7 +287,7 @@ class KmerCounter:
         self.db_querier = KmerDbQuerier(self.kmc_executor, self.kmc_tools_executor, k)
 
         self.pre_mrna_fasta_path = pre_mrna_fasta_path
-        self.k = k 
+        self.k = k
         self.kmc_db_threads = kmc_db_threads
         self.kmc_db_memory_gb = kmc_db_memory_gb
         self.gene_processing_workers = gene_processing_workers
@@ -490,6 +490,6 @@ class KmerCounter:
             data_for_df[gene_id_col] = [results_per_gene[gene_id_col].get(aso_id, 0) for aso_id in self.kmer_data.aso_ids]
         
         df = pl.DataFrame(data_for_df)
-        
+
         logging.info(f"Successfully created ASO x Gene matrix with shape: {df.shape}")
         return df

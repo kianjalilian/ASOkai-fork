@@ -9,13 +9,13 @@ from src.sequence_analysis import (
 from src.file_operations import GenomeDataManager
 from src.kmer_counter import KmerCounter
 import logging
-from src.oligo_extractor import OligoExtractor
 import configparser
 import os
 import multiprocessing as mp
 import RNA
 import time
 from typing import Optional, Dict, Tuple, Any, List
+from src.candidate_manager import CandidateTargetsManager
 
 
 
@@ -76,8 +76,6 @@ def setup_environment(config, job_name: Optional[str] = None):
 
     try:
 
-        kmc_index_dir = config['KMCDir']
-        os.makedirs(kmc_index_dir, exist_ok=True)
 
         genome_data_dir = os.path.join(config['GenomeDir'], reference_name)
         os.makedirs(genome_data_dir, exist_ok=True)
@@ -87,7 +85,7 @@ def setup_environment(config, job_name: Optional[str] = None):
             job_name = f"{config['TargetGene']}_{timestamp}"
             logging.info(f"No job name provided, generated job name: {job_name}")
         
-        data_dir = os.path.join(config['DataDir'], 'jobs', job_name)
+        data_dir = os.path.join(config['JobDir'], 'jobs', job_name)
 
         logging.info(f"Using job-specific directory: {data_dir}")
         
@@ -95,7 +93,6 @@ def setup_environment(config, job_name: Optional[str] = None):
         os.makedirs(os.path.join(data_dir, 'results'), exist_ok=True)
         
         
-        os.makedirs(kmc_index_dir, exist_ok=True)
         
         create_job_config_summary(data_dir, config)
         
@@ -108,7 +105,7 @@ def setup_environment(config, job_name: Optional[str] = None):
     if vienna_params_path:
         RNA.params_load(vienna_params_path)
 
-    return reference_name, genome_data_dir, kmc_index_dir, data_dir
+    return reference_name, genome_data_dir, data_dir
 
 def main() -> None:
     setup_logging()
@@ -135,7 +132,7 @@ def main() -> None:
     job_name = args.job
 
     config = read_config(args_set)
-    index_name, genome_dir, kmc_dir, data_dir = setup_environment(config, job_name)
+    index_name, genome_dir, data_dir = setup_environment(config, job_name)
 
     logging.info("-----------------------------------")
 
@@ -148,31 +145,19 @@ def main() -> None:
         tsl_config_str=config["transcriptSupportLevels"]
     )
 
-    
+    candidate_targets_manager = CandidateTargetsManager(
+        target_gene=genome_data_manager.get_target_gene_object(),
+        k=int(config["OligoLen"]),
+        gc_bounds=tuple(map(float, config['GCbound'].split(','))),
+        rna_cofold_temperature=float(config["RNACofoldTemperature"]),
+        rna_cofold_params_file=config["RNACofoldParamFile"],
+        multiplicity_layout=list(map(int, config["MultiplicityLayout"].split(',')))
+    )
 
 
-#     tsl, tsl_list = convert_tsl_list(config["transcriptSupportLevels"])
-#     logging.info("-----------------------------------")
+    logging.info("-----------------------------------")
 
-#     try:
-#         oligo_obj = OligoExtractor(str(config["TargetGene"]), 
-#                                    int(config["EnsembleRelease"]), 
-#                                    int(config["GenomeAssembly"]),  
-#                                    int(config["OligoLen"]),
-#                                    tuple(map(float, config['GCbound'].split(','))),
-#                                    str(config["Species"]), 
-#                                    gtf_path,
-#                                    cdna_path,
-#                                    scaffold_gtf_path, 
-#                                    [int(x) for x in config["MultiplicityLayout"].split(',')],
-#                                    index_name, 
-#                                    data_dir,
-#                                    genome_path
-#                                    ) 
-#     except Exception as e:
-#         logging.error(f"Error creating OligoExtractor object: {e}")
-#         logging.info("Exiting.")
-#         sys.exit(1)
+
         
 
 #     # logging.info("-----------------------------------")
