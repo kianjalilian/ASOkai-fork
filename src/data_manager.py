@@ -198,6 +198,8 @@ class GenomeDataManager:
             if not self.target_gene: # Still not found
                 raise ValueError(f"Target gene {self.gene_id} not found in the main or scaffold genome assemblies.")
         
+        self.target_gene.pre_mrna_sequence = self.genome.extract_premrna_sequences_per_gene(self.target_gene.gene_id)
+        
         logging.info(f"Target gene '{self.target_gene.gene_name if hasattr(self.target_gene, 'gene_name') else self.gene_id}' loaded.")
 
         self.processed_gtf_path: Optional[str] = None

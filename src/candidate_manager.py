@@ -225,17 +225,15 @@ class CandidateTargetsManager:
         self.filter_candidates(sequence_filter_func)
 
     def find_repeated_sites(self, 
-                            pre_mrna_sequence: str, 
                             force_core_alignment_dG: bool = False, 
                             max_ddg_threshold: Optional[float] = None):
         """
         Finds repeated sites for each candidate within the provided pre_mrna_sequence.
         Args:
-            pre_mrna_sequence: The pre-mRNA sequence of the target gene to search within.
             force_core_alignment_dG: If True, use constraints for dG calculations of repeated sites.
             max_ddg_threshold: If set, only repeated sites with ddG <= threshold are kept.
         """
-        if not pre_mrna_sequence:
+        if not self.target_gene.pre_mrna_sequence:
             logging.warning("Pre-mRNA sequence not provided. Cannot find repeated sites.")
             return
         if not self.candidates:
@@ -246,8 +244,12 @@ class CandidateTargetsManager:
             logging.error("Target gene is missing essential coordinate information (chromosome, start, end, strand). Cannot map repeated sites.")
             return
 
+        pre_mrna_sequence = self.target_gene.pre_mrna_sequence
 
-        logging.info(f"Finding repeated sites for {len(self.candidates)} candidates.")
+        repeated_sites_count = 0
+        if self.verbose:
+            logging.info(f"Finding repeated sites for {len(self.candidates)} candidates.")
+            
         constraint_string = self._get_constraint_string(force_core_alignment_dG)
         
         core_offset = self.multiplicity_layout[0]
@@ -303,22 +305,33 @@ class CandidateTargetsManager:
                 
                 ddg = binding_dg_repeated - candidate.dG_binding
 
-                if max_ddg_threshold is None or ddg <= max_ddg_threshold:
-                    rep_site = RepeatedSite(
-                        sequence=repeated_site_seq,
-                        chromosomal_position=repeated_site_chrom_pos,
-                        parent_target_id=cand_id,
-                        ddg_to_parent=ddg
-                    )
-                    candidate.add_repeated_site(rep_site)
-        logging.info("Finished finding repeated sites.")
+                rep_site = RepeatedSite(
+                    sequence=repeated_site_seq,
+                    chromosomal_position=repeated_site_chrom_pos,
+                    parent_target_id=cand_id,
+                    ddg_to_parent=ddg
+                )
+                candidate.add_repeated_site(rep_site)
+                repeated_sites_count += 1
+            
+        if self.verbose:
+            logging.info(f"Found {repeated_sites_count} repeated sites for {len(self.candidates)} candidates.")
+            
+        self.filter_candidate_repeated_sites_by_ddg(max_ddg_threshold)
+            
+        if self.verbose:
+            logging.info("Finished finding repeated sites.")
 
     def filter_candidate_repeated_sites_by_ddg(self, ddg_threshold: float):
         """Filters repeated sites for all candidates based on a ddG threshold."""
-        logging.info(f"Filtering repeated sites for all candidates with ddG threshold <= {ddg_threshold}.")
+        filtered_candidates_count = 0
+        if self.verbose:
+            logging.info(f"Filtering repeated sites for all candidates with ddG threshold <= {ddg_threshold}.")
         for candidate in self.candidates.values():
             candidate.filter_repeated_sites_by_ddg(ddg_threshold)
+            filtered_candidates_count += len(candidate.repeated_sites)
             
+        logging.info(f"Kept {filtered_candidates_count} repeated sites for {len(self.candidates)} candidates.")
             
     def get_candidate(self, candidate_id: str) -> Optional[CandidateTarget]:
         return self.candidates.get(candidate_id)

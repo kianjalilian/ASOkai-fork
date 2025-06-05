@@ -216,6 +216,15 @@ def main() -> None:
     candidate_targets_manager.filter_candidates_by_id_list(ids_to_remove=candidates_present_in_cdna)
     
     logging.info("-----------------------------------")
+    
+    candidate_targets_manager.find_repeated_sites(force_core_alignment_dG=True, 
+                                                  max_ddg_threshold=float(config.get("RepeatedMaxddG", 5.0)))
+    
+    logging.info("-----------------------------------")
+    
+    
+    
+    
 #     try:
 #         pedersen_params_file = config.get('PedersenParamFile', None)
         
@@ -233,18 +242,6 @@ def main() -> None:
         
 #     logging.info("-----------------------------------")
     
-
-#     try:
-#         repeated_sites_path = filtered_fasta_path.replace(".fa", "_repeated_sites.fa")
-#         oligo_obj.extract_repeated_sites(max_ddg_threshold=float(config["RepeatedMaxddG"]), 
-#                                          force_core_alignment=True,
-#                                          output_file=repeated_sites_path)
-#     except Exception as e:
-#         logging.error(f"Error extracting repeated sites: {e}")
-#         logging.info("Exiting.")
-#         sys.exit(1)
-        
-#     logging.info("-----------------------------------")
     
 #     # Calculate potential secondary sites (mutations)
 #     potential_secondary_sites_path = os.path.join(data_dir, 'oligos', f"{oligo_obj.gene_id}_potential_secondary_sites.fa")
