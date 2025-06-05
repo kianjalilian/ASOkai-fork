@@ -6,16 +6,14 @@ from src.sequence_analysis import (
     PedersenAnalysis,
     SecondarySiteFinder,
     )
-from src.file_operations import GenomeDataManager
-from src.kmer_counter import KmerCounter
+from src.data_manager import GenomeDataManager
 import logging
 import configparser
 import os
-import multiprocessing as mp
-import RNA
 import time
 from typing import Optional, Dict, Tuple, Any, List
 from src.candidate_manager import CandidateTargetsManager
+from src.kmer_counter import KmerCounter
 
 
 
@@ -200,30 +198,24 @@ def main() -> None:
 
     logging.info("-----------------------------------")
 
-
-        
-
-#     # logging.info("-----------------------------------")
+    kmer_counter = KmerCounter(
+        k=int(config["OligoLen"]),
+        kmc_path=config.get("KMCPath", "kmc"),
+        kmc_tools_path=config.get("KMCToolsPath", "kmc_tools"),
+        kmc_db_threads=config.getint("NumProcesses", 64),
+        kmc_db_memory_gb=config.getint("MaxMemory", 128),
+        temp_dir_base=os.path.join(data_dir, 'temp'),
+        verbose=config.getboolean("Verbose", False)
+    )
     
-#     try:             
-#         candidate_fasta_path = oligo_obj.extract_candidate_targets()
-#     except Exception as e:
-#         logging.error(f"Error during oligo extraction: {e}")
-#         logging.info("Exiting.")
-#         sys.exit(1)
-        
-#     logging.info("-----------------------------------")
+    candidates_present_in_cdna = kmer_counter.find_present_targets(
+        fasta_path=genome_data_manager.get_processed_cdna_excluding_target_path(),
+        candidate_sites_kmers=candidate_targets_manager.get_candidates_as_dict()
+    )
 
-        
-#     try:
-#         filtered_fasta_path = oligo_obj.filter_candidate_targets(bowtie_out)
-#     except Exception as e:
-#         logging.error(f"Error filtering viable kmers: {e}")
-#         logging.info("Exiting.")
-#         sys.exit(1)
+    candidate_targets_manager.filter_candidates_by_id_list(ids_to_remove=candidates_present_in_cdna)
     
-#     logging.info("-----------------------------------")
-    
+    logging.info("-----------------------------------")
 #     try:
 #         pedersen_params_file = config.get('PedersenParamFile', None)
         

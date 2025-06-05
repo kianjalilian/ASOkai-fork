@@ -323,8 +323,14 @@ class CandidateTargetsManager:
     def get_candidate(self, candidate_id: str) -> Optional[CandidateTarget]:
         return self.candidates.get(candidate_id)
 
-    def get_all_candidates(self) -> List[CandidateTarget]:
+    def get_all_candidate_targets(self) -> List[CandidateTarget]:
         return list(self.candidates.values())
+
+    def get_candidates_as_dict(self) -> Dict[str, str]:
+        """
+        Returns a dictionary of all candidates with their ID as key and sequence as value.
+        """
+        return {cid: c.sequence for cid, c in self.candidates.items() if c.sequence}
 
     def generate_gtf(self, 
                      output_path: str, 
