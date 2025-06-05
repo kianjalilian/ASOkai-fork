@@ -9,12 +9,8 @@ import concurrent.futures
 import threading
 
 from src.utils.time_utils import ProgressTracker
+import polars as pl
 
-try:
-    import polars as pl
-except ImportError:
-    logging.warning("Polars library not found. calculate_per_gene_counts_matrix will not be available.")
-    pl = None
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -468,11 +464,11 @@ class KmerCounter:
         main_temp_dir = tempfile.mkdtemp(dir=self.temp_dir_base)
         if self.verbose:
             logging.info(f"Created temporary directory for aggregate counts: {main_temp_dir}")
-
+        total_secondary_sites_count = 0
         global_kmc_db = None
         try:
             kmc_db_path_prefix = os.path.join(main_temp_dir, "global_premrna_kmc_db")
-            
+
             if self.verbose:
                 logging.info(f"Building global KMC database from {pre_mrna_fasta_path}...")
             global_kmc_db = self.kmc.build_database(
@@ -497,11 +493,12 @@ class KmerCounter:
             aso_aggregate_counts: Dict[str, int] = {}
             for aso_id, kmer_list in potential_kmers_by_aso.items():
                 total_count = 0
-                for kmer_seq in kmer_list:
+                for kmer_seq, _ in kmer_list:
                     total_count += all_kmer_counts.get(kmer_seq, 0)
                 aso_aggregate_counts[aso_id] = total_count
+                total_secondary_sites_count += total_count
             
-            logging.info(f"Aggregate counts calculated for {len(aso_aggregate_counts)} ASOs.")
+            logging.info(f"{total_secondary_sites_count} secondary sites found in {pre_mrna_fasta_path}.")
             return aso_aggregate_counts
 
         finally:
@@ -541,7 +538,13 @@ class KmerCounter:
             logging.error(f"Error parsing FASTA file {file_path}: {e}")
             raise
 
-    def _process_gene_for_matrix(self, gene_id: str, gene_sequence: str, gene_header: str, all_unique_potential_kmers: Set[str], potential_kmers_by_aso: Dict[str, List[str]]) -> Tuple[str, Dict[str, int]]:
+    def _process_gene_for_matrix(self, 
+                                 gene_id: str, 
+                                 gene_sequence: str, 
+                                 gene_header: str, 
+                                 all_unique_potential_kmers: Set[str], 
+                                 potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]]
+                                 ) -> Tuple[str, Dict[str, int]]:
         """
         Processes a single gene: builds KMC DB, queries k-mers, and returns counts per ASO for this gene.
         """
@@ -571,7 +574,7 @@ class KmerCounter:
             aso_counts_for_gene: Dict[str, int] = {}
             for aso_id, kmer_list in potential_kmers_by_aso.items():
                 total_count = 0
-                for kmer_seq in kmer_list:
+                for kmer_seq, _ in kmer_list:
                     total_count += gene_kmer_counts.get(kmer_seq, 0)
                 aso_counts_for_gene[aso_id] = total_count
             
@@ -588,7 +591,11 @@ class KmerCounter:
                 del gene_kmc_db
             shutil.rmtree(gene_temp_dir, ignore_errors=True)
 
-    def calculate_per_gene_counts_matrix(self, pre_mrna_fasta_path: str, potential_kmers_by_aso: Dict[str, List[str]], total_genes_for_matrix: Optional[int]) -> Optional[Any]: # polars.DataFrame
+    def calculate_per_gene_counts_matrix(self, 
+                                         pre_mrna_fasta_path: str, 
+                                         potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]], 
+                                         total_genes_for_matrix: Optional[int]
+                                         ) -> pl.DataFrame:
         """
         Calculates per-gene off-target counts, producing an ASO x Gene matrix.
         Returns:
@@ -607,7 +614,7 @@ class KmerCounter:
 
         all_unique_potential_kmers = set()
         for kmer_list in potential_kmers_by_aso.values():
-            for kmer_seq in kmer_list:
+            for kmer_seq, _ in kmer_list:
                 if len(kmer_seq) != self.k:
                     raise ValueError(
                         f"K-mer '{kmer_seq}' has length {len(kmer_seq)}, "

@@ -6,7 +6,7 @@ import polars as pl
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction # For GC content if needed directly, though CandidateManager handles it mostly
 
-from src.candidate_manager import CandidateManager
+from src.candidate_manager import CandidateTargetsManager
 from src.utils.genome_utils import CandidateTarget # For type hinting
 from src.sequence_analysis import longest_at_run, longest_t_run
 
@@ -17,8 +17,8 @@ class ResultsGenerator:
     """
 
     def __init__(self, 
-                 candidate_manager: CandidateManager, 
-                 target_gene_species: str, 
+                 candidate_manager: CandidateTargetsManager, 
+                 target_gene_species: str,
                  base_output_dir: str):
         """
         Initializes the ResultsGenerator.
@@ -51,10 +51,8 @@ class ResultsGenerator:
         return os.path.join(results_sub_dir, filename)
 
     def generate_csv_report(self, 
-                            gene_id: str, 
-                            k_mer_length: int, 
-                            off_target_multiplicities: Optional[Dict[str, int]] = None,
                             csv_filename_prefix: Optional[str] = None,
+                            off_target_multiplicities: Optional[Dict[str, int]] = None,
                             include_transcript_ids: bool = False,
                             include_exon_ids: bool = False
                             ) -> str:
@@ -73,17 +71,18 @@ class ResultsGenerator:
         Returns:
             The path to the generated CSV file.
         """
-        logging.info(f"Generating CSV report for gene {gene_id}.")
+        target_gene = self.candidate_manager.target_gene
+        logging.info(f"Generating CSV report for gene {target_gene.gene_id}.")
         
         if off_target_multiplicities is None:
             off_target_multiplicities = {}
 
         results_data = []
-        all_candidates = self.candidate_manager.get_all_candidates()
+        all_candidates = self.candidate_manager.get_all_candidate_targets()
         
         total_transcripts_in_gene = len(self.candidate_manager.target_gene.transcripts) if self.candidate_manager.target_gene.transcripts else 0
 
-        for candidate in all_candidates:
+        for candidate in all_candidates.values():
             chrom_pos = candidate.chromosomal_position
             # Ensure chrom_pos is not None before trying to strip
             position_without_strand = chrom_pos.rstrip(':+-') if chrom_pos else ""
@@ -105,7 +104,7 @@ class ResultsGenerator:
                 'target_sequence': candidate.sequence,
                 'chromosomal_position': candidate.chromosomal_position,
                 'oligo_reverse_complement': oligo_rc_seq,
-                'oligo_GC_percent': gc_fraction(oligo_rc_seq.upper())*100 if oligo_rc_seq else 0.0,
+                'oligo_GC_percent': gc_fraction(oligo_rc_seq.upper()) if oligo_rc_seq else 0.0,
                 'oligo_AT_run': longest_at_run(oligo_rc_seq) if oligo_rc_seq else 0,
                 'oligo_T_run': longest_t_run(oligo_rc_seq) if oligo_rc_seq else 0,
                 'repeated_sites_count': len(candidate.repeated_sites),
@@ -125,75 +124,20 @@ class ResultsGenerator:
             results_data.append(record)
 
         if not results_data:
-            logging.warning(f"No candidate data to write for CSV report for gene {gene_id}.")
+            logging.warning(f"No candidate data to write for CSV report for gene {target_gene.gene_id}.")
             # Create an empty file or a file with headers only, as per desired behavior
             # For now, let's still create the file path
             
         df = pl.DataFrame(results_data)
         
-        file_identifier_prefix = csv_filename_prefix if csv_filename_prefix else gene_id
+        file_identifier_prefix = csv_filename_prefix if csv_filename_prefix else target_gene.gene_id
         output_csv_path = self._get_output_path(
             sub_dir_name="csv_reports", 
             file_identifier=file_identifier_prefix, 
-            k_mer_length=k_mer_length, 
+            k_mer_length=self.candidate_manager.k, 
             extension=".csv"
         )
         
         df.write_csv(output_csv_path)
         logging.info(f"CSV report generated at: {output_csv_path} with {len(df)} records.")
         return output_csv_path
-
-    def generate_gtf_output(self, 
-                            gene_id: str, 
-                            k_mer_length: int, 
-                            gtf_filename_prefix: Optional[str] = None,
-                            source_name: str = "ASO_Pipeline", 
-                            include_repeated_sites: bool = True) -> str:
-        """
-        Generates a GTF file for candidates and their repeated sites.
-
-        Args:
-            gene_id: The ID of the target gene (for filename context).
-            k_mer_length: The k-mer length used (for filename).
-            gtf_filename_prefix: Optional prefix for the GTF filename. If None, gene_id is used.
-            source_name: Source field for GTF records.
-            include_repeated_sites: Whether to include repeated sites in the GTF.
-
-        Returns:
-            The path to the generated GTF file.
-        """
-        file_identifier_prefix = gtf_filename_prefix if gtf_filename_prefix else gene_id
-        output_gtf_path = self._get_output_path(
-            sub_dir_name="gtf_files", 
-            file_identifier=file_identifier_prefix, 
-            k_mer_length=k_mer_length,
-            extension=".gtf"
-        )
-        self.candidate_manager.generate_gtf(output_gtf_path, source_name, include_repeated_sites)
-        return output_gtf_path
-
-    def generate_fasta_output(self, 
-                              gene_id: str, 
-                              k_mer_length: int, 
-                              fasta_filename_prefix: Optional[str] = None,
-                              ) -> str:
-        """
-        Generates a FASTA file for candidate target sequences.
-
-        Args:
-            gene_id: The ID of the target gene (for filename context).
-            k_mer_length: The k-mer length used (for filename).
-            fasta_filename_prefix: Optional prefix for the FASTA filename. If None, gene_id is used.
-
-        Returns:
-            The path to the generated FASTA file.
-        """
-        file_identifier_prefix = fasta_filename_prefix if fasta_filename_prefix else gene_id
-        output_fasta_path = self._get_output_path(
-            sub_dir_name="fasta_files", 
-            file_identifier=file_identifier_prefix, 
-            k_mer_length=k_mer_length,
-            extension=".fasta" # or .fa
-        )
-        self.candidate_manager.generate_candidate_fasta(output_fasta_path)
-        return output_fasta_path 
