@@ -14,7 +14,7 @@ import time
 from typing import Optional, Dict, Tuple, Any, List
 from src.candidate_manager import CandidateTargetsManager
 from src.kmer_counter import KmerCounter
-
+import multiprocessing as mp
 
 
 def create_job_config_summary(job_dir: str, config: dict) -> None:
@@ -202,7 +202,7 @@ def main() -> None:
         k=int(config["OligoLen"]),
         kmc_path=config.get("KMCPath", "kmc"),
         kmc_tools_path=config.get("KMCToolsPath", "kmc_tools"),
-        kmc_db_threads=config.getint("NumProcesses", 64),
+        kmc_db_threads=config.getint("NumProcesses", mp.cpu_count()),
         kmc_db_memory_gb=config.getint("MaxMemory", 128),
         temp_dir_base=os.path.join(data_dir, 'temp'),
         verbose=config.getboolean("Verbose", False)
@@ -222,6 +222,34 @@ def main() -> None:
     
     logging.info("-----------------------------------")
     
+    secondary_site_finder = SecondarySiteFinder(
+        max_ddg=float(config.get("OffTargetMaxddG", 5.0)),
+        multiplicity_layout=list(map(int, config.get("MultiplicityLayout", "4,8,4").split(','))),
+        ddg_tolerance=float(config.get("ddGTolerance", 0.5)),
+        num_processes=config.getint("NumProcesses", mp.cpu_count())
+    )
+    
+    potential_secondary_sites = secondary_site_finder.find_sites(
+        target_sites=candidate_targets_manager.get_all_candidate_targets(),
+    )
+    
+    secondary_sites_counts = kmer_counter.calculate_aggregate_counts(
+        pre_mrna_fasta_path=genome_data_manager.get_genes_pre_mrna_fasta_excludint_target_path(),
+        potential_kmers_by_aso=potential_secondary_sites
+    )
+    
+    logging.info("-----------------------------------")
+
+    pedersen_analyzer = PedersenAnalysis(
+        candidate_targets=candidate_targets_manager.get_all_candidate_targets(),
+        num_processes=config.getint("NumProcesses", mp.cpu_count()),
+        params_file_path=config.get("PedersenParamFile", None),
+        verbose=config.getboolean("Verbose", False)
+    )
+    
+    candidate_targets_manager.update_pedersen_steady_state(pedersen_results=pedersen_analyzer.run_analysis())
+    
+    logging.info("-----------------------------------")
     
     
     

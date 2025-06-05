@@ -431,7 +431,7 @@ class KmerCounter:
                 del global_kmc_db
             shutil.rmtree(main_temp_dir, ignore_errors=True)
 
-    def calculate_aggregate_counts(self, pre_mrna_fasta_path: str, potential_kmers_by_aso: Dict[str, List[str]]) -> Dict[str, int]:
+    def calculate_aggregate_counts(self, pre_mrna_fasta_path: str, potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]]) -> Dict[str, int]:
         """
         Calculates aggregate off-target counts for each ASO across the entire pre-mRNA FASTA file.
 
@@ -450,7 +450,7 @@ class KmerCounter:
 
         all_unique_potential_kmers = set()
         for kmer_list in potential_kmers_by_aso.values():
-            for kmer_seq in kmer_list:
+            for kmer_seq, ddg in kmer_list:
                 if len(kmer_seq) != self.k:
                     raise ValueError(
                         f"K-mer '{kmer_seq}' has length {len(kmer_seq)}, "

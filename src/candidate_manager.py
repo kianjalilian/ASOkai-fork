@@ -336,8 +336,8 @@ class CandidateTargetsManager:
     def get_candidate(self, candidate_id: str) -> Optional[CandidateTarget]:
         return self.candidates.get(candidate_id)
 
-    def get_all_candidate_targets(self) -> List[CandidateTarget]:
-        return list(self.candidates.values())
+    def get_all_candidate_targets(self) -> Dict[str, CandidateTarget]:
+        return self.candidates
 
     def get_candidates_as_dict(self) -> Dict[str, str]:
         """

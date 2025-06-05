@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple, Optional, Union, Set, Any, Callable
 from src.utils.time_utils import ProgressTracker, timed
 import json
 from src.utils.rna_cofold import RNACofold
+from src.utils.genome_utils import CandidateTarget
 
 # Default Pedersen parameters if no file is provided
 DEFAULT_PEDERSEN_PARAMS = {
@@ -89,7 +90,8 @@ class SecondarySiteFinder:
                  multiplicity_layout: List[int] = [4, 8, 4],
                  ddg_tolerance: float = 0.5,
                  num_processes: Optional[int] = None,
-                 force_core_alignment: bool = True):
+                 force_core_alignment: bool = True,
+                 verbose: bool = False):
         """
         Initialize the SecondarySiteFinder.
 
@@ -105,7 +107,8 @@ class SecondarySiteFinder:
         self.ddg_tolerance = ddg_tolerance
         self.num_processes = num_processes if num_processes is not None else mp.cpu_count()
         self.force_core_alignment = force_core_alignment
-
+        self.verbose = verbose
+        
     @staticmethod
     def _pruned_mutation_search(
         target_input: Tuple[str, Tuple[str, float]],
@@ -221,76 +224,38 @@ class SecondarySiteFinder:
     @timed
     def find_sites(
         self,
-        target_sites: Dict[str, Union[str, Dict[str, Any]]],
+        target_sites: Dict[str, CandidateTarget],
         output_fasta_path: Optional[str] = None
     ) -> Dict[str, List[Tuple[str, float]]]:
         """
         Find potential secondary binding sites for each target site.
         
         Args:
-            target_sites (dict): Dictionary of target site identifiers to dictionaries (representing target data) or raw sequences.
-            output_fasta_path (str): Path to output FASTA file for mutations.
+            target_sites (Dict[str, CandidateTarget]): Dictionary mapping target site identifiers to CandidateTarget objects.
+            output_fasta_path (str, optional): Path to output FASTA file for mutations. Defaults to None.
             
         Returns:
-            dict: Dictionary mapping target_id to a list of (mutation_sequence, ddG_binding) tuples.
+            Dict[str, List[Tuple[str, float]]]: Dictionary mapping target_id to a list of (mutation_sequence, ddG_binding) tuples.
         """
         processed_dict: Dict[str, Tuple[str, float]] = {}
-        rna_cofold_instance = None  # Lazy initialization for RNACofold
 
-        for target_id, site_data in target_sites.items():
-            sequence: Optional[str] = None
-            binding_energy: Optional[float] = None
-
-            if isinstance(site_data, dict):
-                sequence = site_data.get('sequence')
-                if not sequence:
-                    logging.error(f"Target data for '{target_id}' is a dictionary but missing 'sequence' key. Skipping.")
-                    continue
-
-                dG_binding_val = site_data.get('dG_binding')
-                dG_val = site_data.get('dG')
-
-                if dG_binding_val is not None:
-                    binding_energy = dG_binding_val
-                elif dG_val is not None:  # Fallback to .dG
-                    binding_energy = dG_val
-                    logging.warning(f"Target '{target_id}' using 'dG' key for binding energy. "
-                                    "Consider using a more specific 'dG_binding' key if available.")
-                else:
-                    logging.error(f"Target data for '{target_id}' (sequence: {sequence}) is a dictionary but missing 'dG_binding' or fallback 'dG' key. Skipping.")
-                    continue
-            
-            elif isinstance(site_data, str):
-                sequence = site_data
-                if rna_cofold_instance is None:
-                    try:
-                        rna_cofold_instance = RNACofold()
-                    except NameError:
-                        logging.error("RNACofold class not found. Please ensure it is imported correctly to process string target sites.")
-                        continue 
-                        
-                logging.warning(
-                    f"Target site '{target_id}' is a string ('{sequence}'). Calculating MFE via RNACofold "
-                    f"to use as binding energy. This may not represent the actual dG_binding for secondary site search."
-                )
-                if rna_cofold_instance:
-                    binding_energy = rna_cofold_instance.get_mfe(sequence)
-                else:
-                    logging.error(f"RNACofold could not be initialized. Skipping MFE calculation for string target '{target_id}'.")
-                    continue
-            
-            else:
-                logging.error(
-                    f"Unsupported target site type for '{target_id}': {type(site_data)}. "
-                    "Expected dictionary (target data) or sequence string. Skipping."
-                )
+        for target_id, candidate in target_sites.items():
+            if not (hasattr(candidate, 'sequence') and hasattr(candidate, 'dG_binding')):
+                logging.warning(f"Item with id '{target_id}' does not appear to be a valid CandidateTarget object. Skipping.")
                 continue
 
-            if sequence is not None and binding_energy is not None:
-                processed_dict[target_id] = (sequence, binding_energy)
-            else:
-                logging.error(f"Failed to process target '{target_id}' due to missing sequence or binding energy after checks. Skipping.")
+            sequence = candidate.sequence
+            binding_energy = candidate.dG_binding
+            
+            if not sequence:
+                logging.warning(f"CandidateTarget '{target_id}' has an empty or None sequence. Skipping.")
                 continue
+
+            if binding_energy is None:
+                logging.warning(f"CandidateTarget '{target_id}' is missing the 'dG_binding' value. Skipping.")
+                continue
+            
+            processed_dict[target_id] = (sequence, binding_energy)
         
         worker_with_args = partial(
             SecondarySiteFinder._pruned_mutation_search,
@@ -309,11 +274,12 @@ class SecondarySiteFinder:
 
         results: Dict[str, List[Tuple[str, float]]] = {}
         try:
-            logging.info(
-                f"Calculating pruned mutations (using dG_binding) for {len(processed_dict)} "
-                f"targets using {self.num_processes} processes. Max ddG threshold: {self.max_ddg:.2f} "
-                f"kcal/mol, tolerance: {self.ddg_tolerance:.2f} kcal/mol"
-            )
+            if self.verbose:
+                logging.info(
+                    f"Calculating pruned mutations (using dG_binding) for {len(processed_dict)} "
+                    f"targets using {self.num_processes} processes. Max ddG threshold: {self.max_ddg:.2f} "
+                    f"kcal/mol, tolerance: {self.ddg_tolerance:.2f} kcal/mol"
+                )
             
             with mp.Pool(processes=self.num_processes) as pool:
                 processed_count = 0
@@ -330,22 +296,23 @@ class SecondarySiteFinder:
 
                     results[target_id] = valid_mutations
                     
-                    if output_fasta_path and target_id in processed_dict: # Ensure target_id is valid
+                    if output_fasta_path and target_id in processed_dict:
                         with open(output_fasta_path, 'a') as f:
                             target_seq, ref_binding_dg = processed_dict[target_id]
-                            f.write(f">{target_id}_0 dG_binding={ref_binding_dg:.2f} (reference)\n{target_seq}")
+                            f.write(f">{target_id}_0 dG_binding={ref_binding_dg:.2f} (reference)\n{target_seq}\n")
                             for idx, (seq, ddg_binding) in enumerate(valid_mutations):
                                 mutation_id = f"{target_id}_{idx+1}"
                                 mutation_binding_dg = ref_binding_dg + ddg_binding
-                                f.write(f">{mutation_id} dG_binding={mutation_binding_dg:.2f} ddG_binding={ddg_binding:.2f}\n{seq}")
+                                f.write(f">{mutation_id} dG_binding={mutation_binding_dg:.2f} ddG_binding={ddg_binding:.2f}\n{seq}\n")
                     elif output_fasta_path and target_id not in processed_dict:
                         logging.warning(f"Could not write FASTA for {target_id} as it's not in processed_dict.")
 
-            logging.info(f"Completed pruned mutation calculations for {len(results)} targets")
+            if self.verbose:
+                logging.info(f"Found a total of {total_mutations} valid mutations based on dG_binding")
+
             total_mutations = sum(len(muts) for muts in results.values() if muts is not None)
-            logging.info(f"Found a total of {total_mutations} valid mutations based on dG_binding")
             
-            if output_fasta_path:
+            if output_fasta_path and self.verbose:
                 logging.info(f"Mutations written to {output_fasta_path}")
                 
             return results
@@ -369,12 +336,13 @@ class PedersenAnalysis:
     Internal calculations include solving quartic equations derived from the kinetic model.
     """
     def __init__(self, 
-                 candidate_targets: Dict[str, Dict[str, Any]],
+                 candidate_targets: Dict[str, CandidateTarget],
                  num_processes: Optional[int] = None,
-                 params_file_path: Optional[str] = None):
+                 params_file_path: Optional[str] = None,
+                 verbose: bool = False):
         self.candidate_targets = candidate_targets
         self.num_processes = num_processes if num_processes is not None else mp.cpu_count()
-        
+        self.verbose = verbose        
         if params_file_path:
             logging.info(f"Loading Pedersen parameters from specified file: {params_file_path}")
             try:
@@ -383,13 +351,19 @@ class PedersenAnalysis:
                 logging.error(f"Failed to load Pedersen parameters from {params_file_path}: {e}")
                 raise ValueError(f"Could not initialize PedersenAnalysis: {e}")
         else:
-            logging.info("No Pedersen parameters file provided. Using default parameters.")
+            if self.verbose:
+                logging.info("No Pedersen parameters file provided. Using default parameters.")
             self.params = DEFAULT_PEDERSEN_PARAMS.copy()
 
         if self.candidate_targets:
-            self.average_dG = sum(site_data.get('dG', 0.0) for site_data in self.candidate_targets.values()) / len(self.candidate_targets)
-            if self.average_dG == 0.0 and any(site_data.get('dG', 0.0) != 0.0 for site_data in self.candidate_targets.values()):
-                logging.warning("Calculated average_dG is 0.0, but some targets have non-zero dG values. Check dG data.")
+            dG_values = [c.dG_binding for c in self.candidate_targets.values() if c.dG_binding is not None]
+            if dG_values:
+                self.average_dG = sum(dG_values) / len(dG_values)
+                if self.average_dG == 0.0 and any(dG != 0.0 for dG in dG_values):
+                     logging.warning("Calculated average_dG is 0.0, but some targets have non-zero dG_binding values. Check data.")
+            else:
+                self.average_dG = 0.0
+                logging.warning("No candidate targets with dG_binding values provided; average_dG set to 0.")
         else:
             self.average_dG = 0.0
             logging.warning("No candidate targets provided; average_dG set to 0.")
@@ -510,13 +484,13 @@ class PedersenAnalysis:
             return None
 
     @staticmethod
-    def _process_pedersen_target(target_data_tuple: Tuple[str, Dict[str, Any], Dict[str, float], float]) -> Tuple[str, float]:
-        target_id, target_dict, params, average_dG = target_data_tuple
+    def _process_pedersen_target(target_data_tuple: Tuple[str, CandidateTarget, Dict[str, float], float]) -> Tuple[str, float]:
+        target_id, candidate, params, average_dG = target_data_tuple
         try:
-            target_dG = target_dict.get('dG')
+            target_dG = candidate.dG_binding
             if target_dG is None:
-                logging.error(f"Target '{target_id}' is missing 'dG' value. Skipping Pedersen calculation for this target.")
-                return target_id, 0.0 # Or handle as appropriate, e.g., raise error or return specific flag
+                logging.error(f"CandidateTarget '{target_id}' is missing the 'dG_binding' value. Skipping Pedersen calculation for this target.")
+                return target_id, 0.0
             
             ddG_from_avg = target_dG - average_dG
             k_OT_initial = params.get('k_OT')
@@ -540,49 +514,44 @@ class PedersenAnalysis:
         except KeyError as ke: logging.error(f"Missing key in params for target {target_id}: {str(ke)}"); return target_id, 0.0
         except Exception as e: logging.error(f"Error processing target {target_id}: {str(e)}"); return target_id, 0.0
 
-    def run_analysis(self) -> Dict[str, Dict[str, Any]]:
+    def run_analysis(self) -> Dict[str, float]:
         logging.info(f"Performing Pedersen analysis")
         if not self.candidate_targets: 
-            logging.warning("No candidate targets for Pedersen analysis"); return self.candidate_targets
+            logging.warning("No candidate targets for Pedersen analysis")
+            return {}
         
-        # Check for consistent dG values if average_dG is 0
         if self.average_dG == 0.0:
-            has_nonzero_dG = any(site_data.get('dG', 0.0) != 0.0 for site_data in self.candidate_targets.values())
+            has_nonzero_dG = any(c.dG_binding != 0.0 for c in self.candidate_targets.values() if c.dG_binding is not None)
             if has_nonzero_dG:
-                logging.error("average_dG is zero, but some targets have non-zero dG values. Pedersen analysis might be unreliable.")
-                # Decide if to return or proceed with caution
+                logging.error("average_dG is zero, but some targets have non-zero dG_binding values. Pedersen analysis might be unreliable.")
             else:
-                logging.warning("All target dG values are zero or no targets. average_dG = 0. Pedersen results might be trivial.")
+                logging.warning("All target dG_binding values are zero or no targets. average_dG = 0. Pedersen results might be trivial.")
 
         par_no_oligo = self.params.copy()
         par_no_oligo['O_ini'] = 1e-10
         
-        steady_state_no_oligo_calc = PedersenAnalysis._get_steady_state_solution(par_no_oligo)
+        steady_state_no_oligo_calc = PedersenAnalysis._get_steady_state_solution(par_no_oligo, self.verbose)
         if steady_state_no_oligo_calc is None or steady_state_no_oligo_calc.get('T', 0.0) == 0.0:
             logging.error("Could not calculate valid baseline steady state target concentration (T). Aborting Pedersen analysis.")
-            # Return original targets without Pedersen data or raise error
-            for tid in self.candidate_targets:
-                 self.candidate_targets[tid]['pedersen_steady_state'] = None # Indicate failure
-            return self.candidate_targets
+            return {tid: 0.0 for tid in self.candidate_targets.keys()}
         steady_state_no_oligo_T = steady_state_no_oligo_calc['T']
 
         logging.info(f"Average dG: {self.average_dG:.2f}. Baseline steady state T (no oligo): {steady_state_no_oligo_T:.2e}")
         
-        tasks = [(tid, ts_dict, self.params, self.average_dG) for tid, ts_dict in self.candidate_targets.items()]
+        tasks = [(tid, candidate, self.params, self.average_dG) for tid, candidate in self.candidate_targets.items()]
         logging.info(f"Starting Pedersen analysis for {len(tasks)} targets using {self.num_processes} processes.")
         
-        updated_targets = self.candidate_targets.copy() # This copies the dict of dicts
+        pedersen_results: Dict[str, float] = {}
         with mp.Pool(processes=self.num_processes) as pool:
             results = pool.imap_unordered(PedersenAnalysis._process_pedersen_target, tasks)
             for target_id, steady_state_value in results:
-                if target_id in updated_targets:
-                    if steady_state_no_oligo_T != 0: # Avoid division by zero
-                        updated_targets[target_id]['pedersen_steady_state'] = steady_state_value / steady_state_no_oligo_T
+                if target_id in self.candidate_targets:
+                    if steady_state_no_oligo_T != 0:
+                        pedersen_results[target_id] = steady_state_value / steady_state_no_oligo_T
                     else:
-                        # This case should be caught by the check above, but as a safeguard:
-                        updated_targets[target_id]['pedersen_steady_state'] = None 
-                        logging.warning(f"Baseline T concentration is zero for target {target_id}, cannot normalize. Setting pedersen_steady_state to None.") 
+                        pedersen_results[target_id] = 0.0
+                        logging.warning(f"Baseline T concentration is zero for target {target_id}, cannot normalize. Setting pedersen_steady_state to 0.0.") 
                 else:
                     logging.warning(f"Received result for unknown target_id: {target_id}")
         logging.info("Completed Pedersen analysis")
-        return updated_targets
+        return pedersen_results
