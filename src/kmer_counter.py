@@ -10,10 +10,57 @@ import threading
 
 from src.utils.time_utils import ProgressTracker
 import polars as pl
-
+import ahocorasick
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Globals for worker processes ---
+# These will be populated by the initializer
+worker_automatons: List[ahocorasick.Automaton] = []
+worker_potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]] = {}
+
+def init_worker_ahocorasick(
+    automatons: List[ahocorasick.Automaton],
+    potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]]
+):
+    """
+    Initializer for each worker in the process pool.
+    This function sets up the global read-only data structures for the worker.
+    """
+    global worker_automatons, worker_potential_kmers_by_aso
+    worker_automatons = automatons
+    worker_potential_kmers_by_aso = potential_kmers_by_aso
+    logging.info(f"Worker process {os.getpid()} initialized.")
+
+def _process_gene_for_matrix_worker(
+    gene_id: str,
+    gene_sequence: str,
+    verbose: bool
+) -> Tuple[str, Dict[str, int]]:
+    """
+    Processes a single gene using the globally available Aho-Corasick automatons.
+    """
+    try:
+        gene_kmer_counts: Dict[str, int] = {}
+        for automaton in worker_automatons:
+            for _, kmer in automaton.iter(gene_sequence):
+                gene_kmer_counts[kmer] = gene_kmer_counts.get(kmer, 0) + 1
+
+        aso_counts_for_gene: Dict[str, int] = {}
+        for aso_id, kmer_list in worker_potential_kmers_by_aso.items():
+            total_count = sum(gene_kmer_counts.get(kmer_seq, 0) for kmer_seq, _ in kmer_list)
+            aso_counts_for_gene[aso_id] = total_count
+        
+        if verbose:
+            if sum(aso_counts_for_gene.values()) > 0:
+                logging.info(f"[Gene: {gene_id}] Processed. Found hits for {sum(1 for x in aso_counts_for_gene.values() if x > 0)} ASOs.")
+        
+        return gene_id, aso_counts_for_gene
+
+    except Exception as e:
+        logging.error(f"[Gene: {gene_id}, Worker: {os.getpid()}] Error during chunked Aho-Corasick processing: {e}")
+        return gene_id, {aso_id: 0 for aso_id in worker_potential_kmers_by_aso.keys()}
 
 class CommandRunner:
     """Handles execution of shell commands."""
@@ -538,59 +585,6 @@ class KmerCounter:
             logging.error(f"Error parsing FASTA file {file_path}: {e}")
             raise
 
-    def _process_gene_for_matrix(self, 
-                                 gene_id: str, 
-                                 gene_sequence: str, 
-                                 gene_header: str, 
-                                 all_unique_potential_kmers: Set[str], 
-                                 potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]]
-                                 ) -> Tuple[str, Dict[str, int]]:
-        """
-        Processes a single gene: builds KMC DB, queries k-mers, and returns counts per ASO for this gene.
-        """
-        gene_temp_dir = tempfile.mkdtemp(dir=self.temp_dir_base, prefix=f"kmercounter_gene_{gene_id.replace(':','_')}_")
-        
-        logging.debug(f"[Gene: {gene_id}] Processing in temp dir: {gene_temp_dir}")
-
-        gene_kmc_db = None
-        try:
-            temp_gene_fasta = os.path.join(gene_temp_dir, f"{gene_id.replace(':','_')}.fa")
-            with open(temp_gene_fasta, 'w') as f:
-                f.write(f"{gene_header}\n{gene_sequence}\n")
-
-            gene_kmc_db = self.kmc.build_database(
-                input_path=temp_gene_fasta,
-                db_prefix_path=os.path.join(gene_temp_dir, f"{gene_id.replace(':','_')}_kmc_db"), 
-                k_value=self.k,
-                temp_dir_path=gene_temp_dir,
-                input_type="fa", 
-                min_count=self.kmc_min_count,
-                threads=1, 
-                memory_gb=2  
-            )
-
-            gene_kmer_counts = self.db_querier.get_counts(gene_kmc_db, all_unique_potential_kmers, gene_temp_dir)
-
-            aso_counts_for_gene: Dict[str, int] = {}
-            for aso_id, kmer_list in potential_kmers_by_aso.items():
-                total_count = 0
-                for kmer_seq, _ in kmer_list:
-                    total_count += gene_kmer_counts.get(kmer_seq, 0)
-                aso_counts_for_gene[aso_id] = total_count
-            
-            if self.verbose:
-                logging.info(f"[Gene: {gene_id}] Processed. Found hits for {sum(1 for x in aso_counts_for_gene.values() if x > 0)} ASOs.")
-            return gene_id, aso_counts_for_gene
-
-        except Exception as e:
-            logging.error(f"[Gene: {gene_id}] Error during processing: {e}")
-            return gene_id, {aso_id: 0 for aso_id in potential_kmers_by_aso.keys()}
-        finally:
-            logging.debug(f"[Gene: {gene_id}] Cleaning up temp dir: {gene_temp_dir}")
-            if gene_kmc_db:
-                del gene_kmc_db
-            shutil.rmtree(gene_temp_dir, ignore_errors=True)
-
     def calculate_per_gene_counts_matrix(self, 
                                          pre_mrna_fasta_path: str, 
                                          potential_kmers_by_aso: Dict[str, List[Tuple[str, float]]], 
@@ -622,6 +616,25 @@ class KmerCounter:
             logging.warning("No unique k-mers to count. Returning empty matrix.")
             return pl.DataFrame(schema={aso_id: pl.Int64 for aso_id in aso_ids}).transpose(include_header=True, header_column_name='ASO_ID', column_names=[])
 
+        # Chunked Aho-Corasick Implementation
+        num_kmers = len(all_unique_potential_kmers)
+        # Aim for chunks of ~1M k-mers, adjust as needed.
+        chunk_size = 1_000_000 
+        num_chunks = (num_kmers + chunk_size - 1) // chunk_size
+        
+        kmer_list = list(all_unique_potential_kmers)
+        automatons = []
+        
+        logging.info(f"Building {num_chunks} Aho-Corasick automatons for {num_kmers} k-mers...")
+        for i in range(num_chunks):
+            automaton = ahocorasick.Automaton()
+            chunk = kmer_list[i*chunk_size:(i+1)*chunk_size]
+            for kmer in chunk:
+                automaton.add_word(kmer, kmer)
+            automaton.make_automaton()
+            automatons.append(automaton)
+        logging.info("Aho-Corasick automatons built.")
+
         if not total_genes_for_matrix or total_genes_for_matrix == 0:
             logging.warning("total_genes_for_matrix not provided or is zero. Progress tracking for gene matrix calculation will be limited or disabled. Returning empty matrix.")
             return pl.DataFrame(schema={aso_id: pl.Int64 for aso_id in aso_ids}).transpose(include_header=True, header_column_name='ASO_ID', column_names=[])
@@ -631,13 +644,17 @@ class KmerCounter:
         progress_tracker = ProgressTracker(total_items=total_genes_for_matrix, description="Processing genes for KMC matrix", update_interval=200)
         actual_genes_submitted_count = 0
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.gene_processing_workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=self.gene_processing_workers,
+            initializer=init_worker_ahocorasick,
+            initargs=(automatons, potential_kmers_by_aso)
+        ) as executor:
             futures = []
             for raw_header, gene_id, gene_sequence in self._parse_fasta(pre_mrna_fasta_path):
                 if not gene_id or not gene_sequence: 
                     logging.warning(f"Skipping invalid entry from FASTA: Header='{raw_header}'")
                     continue
-                futures.append(executor.submit(self._process_gene_for_matrix, gene_id, gene_sequence, raw_header, all_unique_potential_kmers, potential_kmers_by_aso))
+                futures.append(executor.submit(_process_gene_for_matrix_worker, gene_id, gene_sequence, self.verbose))
                 actual_genes_submitted_count += 1
             
             if actual_genes_submitted_count == 0:
