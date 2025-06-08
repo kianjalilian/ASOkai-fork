@@ -306,7 +306,7 @@ class KmerCounter:
                  kmc_db_threads: int = 4,
                  kmc_db_memory_gb: int = 12,
                  gene_processing_workers: int = os.cpu_count() or 1,
-                 temp_dir_base: Optional[str] = None,
+                 data_dir: Optional[str] = None,
                  kmc_min_count: int = 1,
                  verbose: bool = False):
         """
@@ -319,7 +319,7 @@ class KmerCounter:
             kmc_db_threads: Number of threads for KMC database creation.
             kmc_db_memory_gb: Memory (in GB) for KMC database creation.
             gene_processing_workers: Number of worker threads for per-gene processing.
-            temp_dir_base: Optional base directory for temporary files. If None,
+            data_dir: Optional base directory for temporary files. If None,
                            the system's default temporary directory is used.
             kmc_min_count: Minimum count for k-mers to be stored by KMC (-ci).
             verbose: Enable verbose logging.
@@ -331,9 +331,10 @@ class KmerCounter:
         self.kmc_db_threads = kmc_db_threads
         self.kmc_db_memory_gb = kmc_db_memory_gb
         self.gene_processing_workers = gene_processing_workers
-        self.temp_dir_base = temp_dir_base or os.path.join(os.getcwd(), 'temp')
+        self.data_dir = data_dir or os.path.join(os.getcwd(), 'temp')
         self.kmc_min_count = kmc_min_count
 
+        self.temp_dir_base = os.path.join(self.data_dir, 'temp')
         os.makedirs(self.temp_dir_base, exist_ok=True)
 
         self.kmc = KMC(self.kmc_path, self.kmc_db_threads, self.kmc_db_memory_gb, False)
