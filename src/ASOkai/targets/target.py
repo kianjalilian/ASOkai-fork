@@ -7,7 +7,7 @@ Version: 0.1.0
 Description: This file defines the base Target class.
 License: LGPL-3.0-or-later
 """
-from abc import ABC, abstractmethod
+from abc import ABC
 from ..sites import Site
 from typing import Dict, List
 from ..utils import Serializable
@@ -26,14 +26,12 @@ class Target(Serializable, ABC):
         
         Args:
             id: The ID of the target.
-            name: The name of the target.
             target_sites: The target sites of the target.
             **kwargs: Additional keyword arguments.
         """
         self.id = id
         
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        Serializable.__init__(self, **kwargs)
         
         self._target_sites: Dict[str, Site] = target_sites
     

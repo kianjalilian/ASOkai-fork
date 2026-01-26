@@ -16,7 +16,7 @@ from ..sites import Site
 class TargetCreator(ABC):
     """Abstract base class for candidate target creators."""
     
-    TARGET_ID_PREFIX_PARTS: List[str] = ["ASOKAI", "TS"]
+    SITE_ID_PREFIX_PARTS: List[str] = ["ASOKAI"]
     
 
     
@@ -40,13 +40,12 @@ class TargetCreator(ABC):
         pass
 
     @classmethod
-    def target_id_generator(cls, start: int = 1, extra_prefix_parts: Optional[List[str]] = None) -> Iterator[str]:
+    def site_id_generator(cls, start: int = 1, extra_prefix_parts: Optional[List[str]] = None) -> Iterator[str]:
         """
-        Generates target IDs.
+        Generates site IDs.
 
-        The ID is constructed from TARGET_ID_PREFIX_PARTS class variable,
-        any provided extra_prefix_parts, and an incrementing number.
-        Subclasses can extend TARGET_ID_PREFIX_PARTS to add their own identifiers.
+        Site ID format: SITE_ID_PREFIX_PARTS + extra_prefix_parts + incrementing number.
+        Subclasses can extend SITE_ID_PREFIX_PARTS.
 
         Args:
             start (int, optional): The starting number for the enumerator. Defaults to 1.
@@ -54,7 +53,7 @@ class TargetCreator(ABC):
                 to append to the prefix. Defaults to None.
 
         Yields:
-            str: A target ID, e.g., 'ASOKAI-TS-KRAS-Exon2-0001'.
+            str: A site ID, e.g., 'ASOKAI-TS-KRAS-Exon2-0001'.
         """
         
         all_prefix_parts = cls.TARGET_ID_PREFIX_PARTS[:] # Make a copy

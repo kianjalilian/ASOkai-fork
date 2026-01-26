@@ -40,7 +40,7 @@ class TargetGene(Target, Gene):
             start: The start position of the candidate target gene.
             end: The end position of the candidate target gene.
             strand: The strand of the candidate target gene.
-            sequence: The sequence of the candidate target gene.
+            sequence: The pre-mRNA sequence of the candidate target gene.
             target_sites: The target sites of the candidate target gene.
             genome: The genome of the candidate target gene, Optional.
             chromosome: The chromosome of the candidate target gene, Optional.
