@@ -9,15 +9,19 @@ License: LGPL-3.0-or-later
 """
 from GenomeUtils.Genome import Locus
 from GenomeUtils.Genome import GenomeElement
-from typing import TYPE_CHECKING, Literal, Dict, Any
+from typing import TYPE_CHECKING, Literal
 from Bio.Seq import Seq
 from .site import Site
 
 if TYPE_CHECKING:
     from GenomeUtils.Genome import Genome
 
+
 class GenomicSite(Site, GenomeElement):
     """Base class for genomic sites."""
+    
+    # Attributes to exclude from serialization (references to large/circular objects)
+    _non_serializable_attrs = {'_genome', '_parent', '_children'}
     
     def __init__(self, 
                  chr: str, 
@@ -51,14 +55,4 @@ class GenomicSite(Site, GenomeElement):
         
     def __repr__(self):
         return f"{self.__class__.__name__}(id='{self.id}', locus={self.locus!r}), sequence={self.sequence!r})"
-
-    def _serialize_attribute(self, key: str, value: Any) -> Dict[str, Any]:
-        if key == 'locus' and isinstance(value, Locus):
-            return {
-                'chr': value.chr,
-                'start': value.start,
-                'end': value.end,
-                'strand': value.strand
-            }
-        return super()._serialize_attribute(key, value)
     

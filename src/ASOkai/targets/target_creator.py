@@ -16,7 +16,7 @@ from ..sites import Site
 class TargetCreator(ABC):
     """Abstract base class for candidate target creators."""
     
-    SITE_ID_PREFIX_PARTS: List[str] = ["ASOKAI"]
+    SITE_ID_PREFIX_PARTS: List[str] = ["ASOkai"]
     
 
     
@@ -56,12 +56,12 @@ class TargetCreator(ABC):
             str: A site ID, e.g., 'ASOKAI-TS-KRAS-Exon2-0001'.
         """
         
-        all_prefix_parts = cls.TARGET_ID_PREFIX_PARTS[:] # Make a copy
+        all_prefix_parts = cls.SITE_ID_PREFIX_PARTS[:] # Make a copy
         if extra_prefix_parts:
             all_prefix_parts.extend(extra_prefix_parts)
 
         prefix = "-".join(all_prefix_parts)
         i = start
         while True:
-            yield f"{prefix}-{i:04d}"
+            yield f"{prefix}-S{i:06d}"
             i += 1 
