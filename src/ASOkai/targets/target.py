@@ -8,6 +8,7 @@ Description: This file defines the base Target class.
 License: LGPL-3.0-or-later
 """
 from abc import ABC
+from re import L
 from ..sites import Site
 from typing import Dict, List
 from ..utils import Serializable
@@ -48,14 +49,12 @@ class Target(Serializable, ABC):
         
         return self._target_sites[id]
     
+    
+    
     @property
-    def sites(self) -> List[Site]:
+    def target_sites(self) -> List[Site]:
         """
-        Get all target sites.
+        Get all target sites as a dictionary.
         """
         return list(self._target_sites.values())
-        
-    @classmethod
-    def _get_init_arg_name_map(cls) -> Dict[str, str]:
-        return {"_target_sites": "target_sites"}
         

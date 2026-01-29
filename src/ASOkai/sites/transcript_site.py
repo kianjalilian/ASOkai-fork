@@ -49,6 +49,9 @@ class TranscriptSite(Site):
         self.t_end = t_end
         
         Site.__init__(self, sequence=sequence, id=id, **kwargs)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}(id='{self.id}', transcript_id='{self.transcript_id}', t_start={self.t_start}, t_end={self.t_end})"
 
     def to_genomic(self, transcript: "Transcript") -> List[GenomicSite]:
         pass

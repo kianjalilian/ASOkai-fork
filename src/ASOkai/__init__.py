@@ -13,6 +13,8 @@ from . import Targets
 from . import Biochemistry
 from . import Analysis
 from . import Utils
+from .utils import attribute_registrations # Auto-registers external types on import
+
 __all__ = [
     "Sites",
     "Antisense",

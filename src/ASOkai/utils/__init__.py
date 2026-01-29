@@ -8,7 +8,6 @@ Description: This file initializes the utils module.
 License: LGPL-3.0-or-later
 """
 from .serializer import Serializable
-from . import type_registrations  # Auto-registers external types on import
 
 __all__ = [
     "Serializable",

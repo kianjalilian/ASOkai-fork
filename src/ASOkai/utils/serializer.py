@@ -7,7 +7,7 @@ Version: 0.1.0
 Description: This file defines the Serializable class for serializing and deserializing objects.
 License: LGPL-3.0-or-later
 """
-from typing import Dict, Any, Type, TypeVar, Callable
+from typing import Dict, Any, Type, TypeVar, Callable, Optional
 import json
 import importlib
 import inspect
@@ -21,49 +21,14 @@ class Serializable:
     """
     
     # Class-level registry for external types
-    # Maps type -> (type_name, serialize_func, flatten)
-    _type_serializers: Dict[type, tuple[str, Callable[[Any], Dict[str, Any]], bool]] = {}
-    # Maps type_name -> deserialize_func
-    _type_deserializers: Dict[str, Callable[[Dict[str, Any]], Any]] = {}
+    # Maps *internal instance attribute name* -> (serialized_key, serialize_func, flatten)
+    _attribute_serializers: Dict[str, tuple[str, Callable[[Any], Any], bool]] = {}
+    # Maps *__init__ parameter / incoming key name* -> (init_arg_name, deserialize_func)
+    _attribute_deserializers: Dict[str, tuple[str, Callable[[Any], Any]]] = {}
     
-    @classmethod
-    def register_type(
-        cls,
-        type_class: type,
-        type_name: str,
-        serialize: Callable[[Any], Dict[str, Any]],
-        deserialize: Callable[[Dict[str, Any]], Any],
-        flatten: bool = False
-    ) -> None:
-        """
-        Register an external type for serialization/deserialization.
-        
-        Args:
-            type_class: The type to register (e.g., Locus, Seq).
-            type_name: A unique string identifier for the type (e.g., 'Locus', 'Bio.Seq.Seq').
-            serialize: A function that takes an instance and returns a dict of its data.
-            deserialize: A function that takes a dict and returns an instance.
-            flatten: If True, serialize components as top-level keys instead of nested dict.
-                     When flattened, no __type__ marker is added (components merge into parent).
-        
-        Example:
-            # Nested (default): {"locus": {"chr": "12", ..., "__type__": "Locus"}}
-            Serializable.register_type(
-                Locus, 'Locus',
-                serialize=lambda l: {'chr': l.chr, 'start': l.start, 'end': l.end, 'strand': l.strand},
-                deserialize=lambda d: Locus(**d)
-            )
-            
-            # Flattened: {"chr": "12", "start": 100, "end": 200, "strand": "-"}
-            Serializable.register_type(
-                Locus, 'Locus',
-                serialize=lambda l: {'chr': l.chr, 'start': l.start, 'end': l.end, 'strand': l.strand},
-                deserialize=lambda d: Locus(**d),
-                flatten=True
-            )
-        """
-        cls._type_serializers[type_class] = (type_name, serialize, flatten)
-        cls._type_deserializers[type_name] = deserialize
+    # Attributes to exclude from serialization
+    _non_serializable_attrs: set[str] = set()
+    
 
     def __init__(self, **kwargs: Any) -> None:
         """
@@ -73,11 +38,39 @@ class Serializable:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    # Override in subclass to exclude attributes from serialization
-    _non_serializable_attrs: set = set()
+
+    @classmethod
+    def register_attribute(
+        cls,
+        attribute_name: str,
+        serialized_attribute_name: Optional[str] = None,
+        deserialized_attribute_name: Optional[str] = None,
+        serialize: Optional[Callable[[Any], Any]] = None,
+        deserialize: Optional[Callable[[Any], Any]] = None,
+        flatten: bool = False) -> None:
+        """
+        Register an external attribute for serialization/deserialization.
+        
+        Args:
+            attribute_name: The name of the attribute to register.
+            serialized_attribute_name: The name of the attribute to use for serialization.
+            deserialized_attribute_name: The name of the attribute to use for deserialization.
+            serialize: A function that takes an instance and returns the value of the attribute.
+            deserialize: A function that takes a value and returns the instance.
+            flatten: If True, the attribute is serialized as a top-level key instead of a nested dict.
+        """
+        if serialized_attribute_name is None:
+            serialized_attribute_name = attribute_name
+        if deserialized_attribute_name is None:
+            deserialized_attribute_name = serialized_attribute_name
+
+        if serialize is not None:
+            cls._attribute_serializers[attribute_name] = (serialized_attribute_name, serialize, flatten)
+        if deserialize is not None:
+            cls._attribute_deserializers[serialized_attribute_name] = (deserialized_attribute_name, deserialize)
 
     def to_dict(self) -> Dict[str, Any]:
-        """
+        """ 
         Convert the object to a dictionary.
         """
         data: Dict[str, Any] = {
@@ -85,21 +78,28 @@ class Serializable:
             '__module__': self.__class__.__module__
         }
         for key, value in self.__dict__.items():
-            if key in self._non_serializable_attrs:
-                continue
-            # Check if this is a flattened registered type
-            flattened = False
-            for type_class, (type_name, serialize_func, flatten) in self._type_serializers.items():
-                if isinstance(value, type_class) and flatten:
-                    # Merge components directly into parent dict
-                    data.update(serialize_func(value))
-                    flattened = True
-                    break
-            if not flattened:
-                data[key] = self._serialize_value(value)
+            data.update(self._serialize_attribute(key, value))
         return data
+    
+    def _serialize_attribute(self, attribute_name: str, value: Any) -> Dict[str, Any]:
+        """
+        Serialize an attribute to a dictionary.
+        """
+        if attribute_name in self._non_serializable_attrs:
+            return {}
+        if attribute_name in self._attribute_serializers:
+            serialize_attribute_name, serialize_func, flatten = self._attribute_serializers[attribute_name]
+            if flatten:
+                return serialize_func(value)
+            else:
+                return {serialize_attribute_name: serialize_func(value)}
+        return {attribute_name: self._serialize_value(value)}
+
 
     def _serialize_value(self, value: Any) -> Any:
+        """
+        Default method to serialize a value to a dictionary.
+        """
         if isinstance(value, (str, int, float, bool, type(None))):
             return value
         elif isinstance(value, Serializable):
@@ -109,13 +109,6 @@ class Serializable:
         elif isinstance(value, (list, tuple)):
             return [self._serialize_value(item) for item in value]
         else:
-            # Check registered external types
-            for type_class, (type_name, serialize_func, flatten) in self._type_serializers.items():
-                if isinstance(value, type_class):
-                    data = serialize_func(value)
-                    if not flatten:
-                        data['__type__'] = type_name
-                    return data
             raise TypeError(f"Cannot serialize type {type(value).__name__}")
 
     def to_file(self, file_path: str) -> None:
@@ -126,31 +119,18 @@ class Serializable:
             json.dump(self.to_dict(), f, indent=4)
 
     @classmethod
-    def _get_init_arg_name_map(cls) -> Dict[str, str]:
-        """
-        Provides a mapping from serialized attribute names to __init__ parameter names.
-        Override this in a subclass if the names differ.
-        Example: return {"_sequence": "sequence"}
-        """
-        return {}
-
-    @classmethod
     def _deserialize_value(cls, value_data: Any) -> Any:
         """
-        Hook for subclasses to deserialize special value types.
-        The base implementation handles registered types, Serializable objects, dicts, and lists.
+        Default method to deserialize a value from a dictionary.
         """
         if isinstance(value_data, list):
             return [cls._deserialize_value(item) for item in value_data]
         elif isinstance(value_data, dict):
-            # Check for registered external type
+            # Explicitly reject legacy external-type markers.
             if '__type__' in value_data:
-                type_name = value_data['__type__']
-                if type_name in cls._type_deserializers:
-                    # Create a copy without __type__ for the deserializer
-                    data = {k: v for k, v in value_data.items() if k != '__type__'}
-                    return cls._type_deserializers[type_name](data)
-            # Check for Serializable object
+                raise ValueError(
+                    "Legacy serialized payloads using '__type__' are not supported."
+                )
             if '__class__' in value_data and '__module__' in value_data:
                 return Serializable.from_dict(value_data)
             # Regular dict - recursively deserialize values
@@ -158,9 +138,20 @@ class Serializable:
         return value_data
 
     @classmethod
+    def _deserialize_attribute(cls, attribute_name: str, value: Any) -> Any:
+        """
+        Deserialize an attribute from a dictionary.
+        """
+        if attribute_name in cls._attribute_deserializers:
+            deserialize_attribute_name, deserialize_func = cls._attribute_deserializers[attribute_name]
+            return {deserialize_attribute_name: deserialize_func(value)}
+
+        return {attribute_name: cls._deserialize_value(value)}
+
+    @classmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
         """
-        Create an object from a dictionary using introspection.
+        Create an object from a dictionary.
         """
         if not (isinstance(data, dict) and '__class__' in data and '__module__' in data):
             raise ValueError("Data is not a valid serialized object dictionary.")
@@ -179,26 +170,18 @@ class Serializable:
             raise TypeError(f"Data is for class {class_name}, which is not a subclass of {cls.__name__}")
 
         sig = inspect.signature(cls_from_data.__init__)
-        name_map = cls_from_data._get_init_arg_name_map()
         init_args: Dict[str, Any] = {}
 
-        # First, handle mapped arguments
-        for attr_name, param_name in name_map.items():
-            if attr_name in data and param_name in sig.parameters:
-                value = data.pop(attr_name)
-                init_args[param_name] = cls_from_data._deserialize_value(value)
 
-        # Handle remaining arguments where attr_name == param_name
         for param_name in sig.parameters:
             if param_name in data:
                 value = data.pop(param_name)
-                init_args[param_name] = cls_from_data._deserialize_value(value)
+                init_args.update(cls._deserialize_attribute(param_name, value))
 
         # Pass any leftover data as kwargs, if __init__ accepts them
         for param in sig.parameters.values():
             if param.kind == param.VAR_KEYWORD:
-                # Deserialize remaining data for kwargs
-                deserialized_kwargs = {k: cls_from_data._deserialize_value(v) for k, v in data.items()}
+                deserialized_kwargs = {k: cls._deserialize_value(v) for k, v in data.items()}
                 init_args.update(deserialized_kwargs)
                 break
 

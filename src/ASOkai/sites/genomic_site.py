@@ -51,7 +51,7 @@ class GenomicSite(Site, GenomeElement):
             id = str(locus)
             
         Site.__init__(self, id=id, sequence=sequence, **kwargs)
-        GenomeElement.__init__(self, id=id, locus=locus, genome=genome, **kwargs)
+        GenomeElement.__init__(self, id=id, locus=locus, genome=genome)
         
     def __repr__(self):
         return f"{self.__class__.__name__}(id='{self.id}', locus={self.locus!r}), sequence={self.sequence!r})"

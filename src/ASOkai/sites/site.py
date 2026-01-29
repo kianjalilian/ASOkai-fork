@@ -31,8 +31,7 @@ class Site(Serializable, ABC):
         self.id = id
         self._sequence = sequence
         
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        Serializable.__init__(self, **kwargs)
 
     @property
     def sequence(self) -> Seq:
@@ -43,7 +42,4 @@ class Site(Serializable, ABC):
         """Return a string representation of this site."""
         pass
 
-    @classmethod
-    def _get_init_arg_name_map(cls) -> Dict[str, str]:
-        return {"_sequence": "sequence"}
     
