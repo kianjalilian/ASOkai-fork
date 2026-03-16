@@ -1,0 +1,20 @@
+name: ASOkai
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - biopython>=1.83
+  - pyyaml>=6.0
+  - requests>=2.32
+  - tqdm>=4.67
+  - pytest
+  - black
+  - pip
+  - pip:
+    - "toil[cwl]"
+    - argparse2tool
+    - "gffutils>=0.13,<0.14"
+    - "-e /home/ayat/Repositories/genome_utils"
+    - "-e /home/ayat/Repositories/ASOKai"

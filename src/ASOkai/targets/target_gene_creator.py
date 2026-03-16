@@ -41,7 +41,6 @@ def _extract_exonic_only_sites(gene: Gene, genome: Genome, k: int, id_generator:
             all_exons.add(exon)
     
     sorted_exons = sorted(list(all_exons), key=lambda x: x.start)
-    print("sorted_exons", sorted_exons)
     
     sites = {}
     

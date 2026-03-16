@@ -62,7 +62,38 @@ ASOkai
 
 ### 1. `run`
 
-This is the main, high-level command intended for most users. It can be used to execute complete workflows, individual tasks, or low-level steps, depending on the options provided. For the most up-to-date usage information, please refer to the built-in help (`asokai run --help`).
+This is the main, high-level command intended for most users. It can execute one or more low-level steps and automatically resolve dependencies between them.
+
+Current native step execution examples:
+
+```bash
+# List available units
+ASOkai list steps
+ASOkai list tasks
+ASOkai list workflows
+
+# Describe one unit
+ASOkai describe step download-genome
+ASOkai describe task prepare-genome
+ASOkai describe workflow standard
+
+# Run one step / task / workflow
+ASOkai run --steps download-genome
+ASOkai run --tasks prepare-genome
+ASOkai run --workflow standard
+
+# Run standard workflow by default
+ASOkai run
+
+# Preview execution order without running
+ASOkai run --steps download-genome --dry-run
+
+# Override config values from CLI directly
+ASOkai run --steps download-genome --genome.ensembl_release 115
+
+# Force rerun even if outputs already exist
+ASOkai run --steps download-genome --force
+```
 
 ---
 ### 2. Workflows

@@ -12,7 +12,7 @@ maintainers = [
     {name="Nathalie Gocht", email="nathalie.gocht@b-tu.de"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -21,11 +21,24 @@ classifiers = [
 license = "LGPL-3.0-or-later"
 
 dependencies = [
+    "PyYAML>=6.0",
+    "click>=8.0",
     "gffutils>=0.13,<0.14",
     "requests>=2.32,<3",
     "biopython>=1.83,<2",
     "tqdm>=4.67,<5",
     "GenomeUtils>=0.1.1,<2",
 ]
+
+[tool.setuptools.package-data]
+"ASOkai.cwl.steps"     = ["*.cwl"]
+"ASOkai.cwl.tasks"     = ["*.cwl"]
+"ASOkai.cwl.workflows" = ["*.cwl"]
+
+[project.scripts]
+ASOkai              = "ASOkai.cli.main:main"
+download-genome     = "ASOkai.pipeline.steps.download_genome:main"
+create-target-gene  = "ASOkai.pipeline.steps.create_target_gene:main"
+intrinsic-features  = "ASOkai.pipeline.steps.intrinsic_features:main"
 
 

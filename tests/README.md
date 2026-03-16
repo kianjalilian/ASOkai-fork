@@ -7,6 +7,8 @@ Comprehensive test suite for the ASOKai serialization system.
 ```
 tests/
 ├── conftest.py                                 # Shared fixtures
+├── cli/                                        # CLI entry point tests
+│   └── test_download_genome.py
 ├── unit/                                       # Unit tests
 │   ├── test_type_registrations.py             # Type registration tests (Seq, Locus)
 │   ├── test_serializer.py                     # Serializable base class tests
@@ -51,6 +53,9 @@ pytest -m unit
 
 # Run only integration tests
 pytest -m integration
+
+# Run only CLI tests
+pytest -m cli
 
 # Run only serialization tests
 pytest -m serialization

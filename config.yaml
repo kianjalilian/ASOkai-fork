@@ -1,0 +1,14 @@
+# ASOkai pipeline configuration
+# Used by ASOkai pipeline steps and CLI entry points
+
+datadir: ./data
+
+genome:
+  assembly_id: GRCh38
+  ensembl_release: 114
+  species: Homo_sapiens
+
+target:
+  target_id: ENSG00000133703  # KRAS
+  k: 16
+  region: pre-mrna  # exonic_only | pre-mrna | transcriptomic
