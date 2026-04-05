@@ -14,10 +14,10 @@
 ## 2. High-Level Architecture
 
 - **Module layout (domain & antisense)**:
-  - Targets and related domain types live in `ASOkai.targets` (e.g. `src/ASOkai/targets/target.py`, `target_gene.py`, `target_gene_creator.py`).
-  - Sites and their variants live in `ASOkai.sites` (e.g. `src/ASOkai/sites/genomic_site.py`, `transcript_site.py`).
-  - Antisense constructs and ASOs live in `ASOkai.antisense` (e.g. `src/ASOkai/antisense/aso.py`, `antisense_construct.py`).
-  - Analysis code, biochemistry, and other domain logic live in their respective packages under `src/ASOkai/` (e.g. `analysis/`, `biochemistry/`).
+  - Targets and related domain types live in `ASOkai.Targets` (e.g. `src/ASOkai/Targets/target.py`, `target_gene.py`, `target_gene_creator.py`).
+  - Sites and their variants live in `ASOkai.Sites` (e.g. `src/ASOkai/Sites/genomic_site.py`, `transcript_site.py`).
+  - Antisense constructs and ASOs live in `ASOkai.Antisense` (e.g. `src/ASOkai/Antisense/aso.py`, `antisense_construct.py`).
+  - Analysis code, biochemistry, and other domain logic live in their respective packages under `src/ASOkai/` (e.g. `Analysis/`, `Biochemistry/`).
 - **Configuration model**:
   - A single **configuration file** (Default at `config.yaml`) contains all configurable parameters for workflows, groups, and stages.
   - Some configuration keys/arguments are **mandatory** (the pipeline will fail fast if they are missing), others are **optional** with documented defaults.
@@ -42,7 +42,7 @@
   - **Pipeline layer**: stages, groups, workflows, CLI, configuration, orchestration (see [§5](#5-pipeline-contracts-stages-groups-workflows)).
   - **Serialization layer**: reading/writing objects and results (files, tables, etc.) (see [§6](#6-serialization)).
 
-Describe briefly here how these layers map to the actual packages/modules in `src/ASOkai/` (e.g. `targets/`, `sites/`, `analysis/`, `utils/`, …).
+Describe briefly here how these layers map to the actual packages/modules in `src/ASOkai/` (e.g. `Targets/`, `Sites/`, `Analysis/`, `Utils/`, …).
 
 ---
 
@@ -96,7 +96,7 @@ For each change, decide which of these you are extending and follow the relevant
   - Uppercase characters.
   - Allowed alphabet: specify here (e.g. `A`, `C`, `G`, `T`, `U`, `N`).
 - **Helpers**:
-  - Use a **central helper** for reverse complement and validation (e.g. `utils.sequence.*`).
+  - Use a **central helper** for reverse complement and validation (e.g. `Utils.sequence.*`).
 - **Design rules**:
   - Do not reimplement reverse-complement or validation logic in analysis code; call the shared utilities.
 
@@ -197,7 +197,7 @@ At minimum, the following should be serializable:
 
 ### 6.2 How We Serialize
 
-- **Central module**: All serialization should go through `ASOkai.utils.serializer` (adapt name if different).
+- **Central module**: All serialization should go through `ASOkai.Utils.serializer` (adapt name if different).
 - **Allowed formats** (define for this project, e.g.):
   - JSON for small structured configs/metadata.
   - CSV/Parquet for tabular per-site or per-target results.
@@ -268,7 +268,7 @@ At minimum, the following should be serializable:
 ### 7.5 Reusability and API Design
 
 - Any analysis that is exposed via CLI should also be callable from Python:
-  - e.g. `ASOkai.analysis.intrinsic_features.compute(target_gene, config)`.
+  - e.g. `ASOkai.Analysis.intrinsic_features.compute(target_gene, config)`.
 - Document public Python entry points so they can be reused in external workflows or notebooks.
 
 ---
@@ -320,7 +320,7 @@ At minimum, the following should be serializable:
      - Metric value(s).
 3. **Integrate with serialization** (see [§6](#6-serialization)):
    - Convert results to a serializable structure (e.g. DataFrame, list of dicts).
-   - Save via `utils.serializer` using a new or existing schema.
+   - Save via `Utils.serializer` using a new or existing schema.
 4. **Create/extend a stage** (see [§5.1](#51-stages)):
    - Define a new stage (e.g. `stages.compute-new-feature`) or extend an existing feature stage.
    - Stage should:
@@ -351,7 +351,7 @@ At minimum, the following should be serializable:
 - [ ] Define CLI name and description.
 - [ ] Declare group dependencies (other groups/stages) (see [§5.2](#52-groups)).
 - [ ] Implement group orchestration (calls to stages).
-- [ ] Ensure results are serialized using `utils.serializer` (see [§6](#6-serialization)).
+- [ ] Ensure results are serialized using `Utils.serializer` (see [§6](#6-serialization)).
 - [ ] Add/update integration tests (see [§8](#8-testing-guidelines)).
 - [ ] Document group behavior and outputs (README or docs).
 

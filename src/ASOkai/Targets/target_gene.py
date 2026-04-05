@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/targets/target_gene.py
+Filename: src/ASOkai/Targets/target_gene.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -11,7 +11,7 @@ from GenomeUtils.Genome import Gene, Genome, Chromosome
 from .target import Target
 from typing import Literal, Dict
 from Bio.Seq import Seq
-from ..sites import Site
+from ..Sites import Site
 
 
 class TargetGene(Target, Gene):

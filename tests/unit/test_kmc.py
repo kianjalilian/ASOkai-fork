@@ -1,4 +1,4 @@
-"""Tests for ASOkai.utils.kmc (KMC, KMCDatabase, KMCExecutionError)."""
+"""Tests for ASOkai.Utils.kmc (KMC, KMCDatabase, KMCExecutionError)."""
 from __future__ import annotations
 
 import subprocess
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ASOkai.utils.kmc import KMC, KMCDatabase, KMCExecutionError
+from ASOkai.Utils.kmc import KMC, KMCDatabase, KMCExecutionError
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_kmc_run_minimal_args(kmc: KMC, tmp_path: Path) -> None:
     work = tmp_path / "work"
 
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=completed) as mock_run:
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=completed) as mock_run:
         kmc.run(
             inp, out, work,
             k=21,
@@ -52,7 +52,7 @@ def test_kmc_run_canonical_off_and_flags(kmc: KMC, tmp_path: Path) -> None:
     work = tmp_path / "work"
 
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=completed) as mock_run:
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=completed) as mock_run:
         kmc.run(
             inp, out, work,
             k=16,
@@ -126,7 +126,7 @@ def test_run_resolves_input_with_at_symbol(kmc: KMC, tmp_path: Path) -> None:
     out, work = tmp_path / "out", tmp_path / "work"
     
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=completed) as mock_run:
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=completed) as mock_run:
         kmc.run(f"@{inp}", out, work)
     
     argv = mock_run.call_args.args[0]
@@ -141,7 +141,7 @@ def test_run_creates_directories_and_invokes_subprocess(kmc: KMC, tmp_path: Path
     work = tmp_path / "nested" / "scratch"
 
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=completed) as mock_run:
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=completed) as mock_run:
         proc = kmc.run(inp, out, work, k=10, debug=True, check=True)
 
     assert proc.returncode == 0
@@ -160,7 +160,7 @@ def test_run_verbose_adds_kmc_v_without_debug_stream(kmc: KMC, tmp_path: Path) -
     inp, out, work = tmp_path / "in.fa", tmp_path / "db", tmp_path / "w"
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
     
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=completed) as mock_run:
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=completed) as mock_run:
         kmc.run(inp, out, work, k=10, verbose=True, debug=False, check=True)
     
     argv = mock_run.call_args.args[0]
@@ -172,7 +172,7 @@ def test_run_kmc_failure_raises(kmc: KMC, tmp_path: Path) -> None:
     inp, out, work = tmp_path / "in.fa", tmp_path / "db", tmp_path / "w"
     bad = subprocess.CompletedProcess(args=[], returncode=1, stdout="out", stderr="err")
     
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=bad):
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=bad):
         with pytest.raises(KMCExecutionError) as exc_info:
             kmc.run(inp, out, work, check=True, debug=False)
     
@@ -184,7 +184,7 @@ def test_run_check_false_returns_failed_process(kmc: KMC, tmp_path: Path) -> Non
     inp, out, work = tmp_path / "in.fa", tmp_path / "db", tmp_path / "w"
     bad = subprocess.CompletedProcess(args=[], returncode=7, stdout="", stderr="")
     
-    with patch("ASOkai.utils.kmc.subprocess.run", return_value=bad):
+    with patch("ASOkai.Utils.kmc.subprocess.run", return_value=bad):
         proc = kmc.run(inp, out, work, check=False)
     assert proc.returncode == 7
 

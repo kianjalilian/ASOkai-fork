@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/targets/target_creator.py
+Filename: src/ASOkai/Targets/target_creator.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from .target import Target
 from GenomeUtils.Genome import Genome
 from typing import Dict, Iterator, List, Optional
-from ..sites import Site
+from ..Sites import Site
 
 class TargetCreator(ABC):
     """Abstract base class for candidate target creators."""

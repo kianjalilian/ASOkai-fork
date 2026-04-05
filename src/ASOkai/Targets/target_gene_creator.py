@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/targets/target_gene_creator.py
+Filename: src/ASOkai/Targets/target_gene_creator.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -12,9 +12,9 @@ from .target_gene import TargetGene
 from GenomeUtils.Genome import Genome, Gene, Exon, Locus
 from typing import Literal, Dict, Set, List, Iterator, Optional
 from Bio.Seq import Seq
-from ..sites import Site
-from ..sites import GenomicSite
-from ..sites import TranscriptSite
+from ..Sites import Site
+from ..Sites import GenomicSite
+from ..Sites import TranscriptSite
 
 
 # Module-level helper functions for site extraction

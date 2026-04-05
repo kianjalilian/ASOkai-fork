@@ -5,7 +5,7 @@ Unit tests for the Serializable base class.
 import pytest
 import json
 from Bio.Seq import Seq
-from ASOkai.utils.serializer import Serializable
+from ASOkai.Utils.serializer import Serializable
 
 
 class SimpleSerializable(Serializable):

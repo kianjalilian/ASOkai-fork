@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/analysis/base.py
+Filename: src/ASOkai/Analysis/base.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -10,7 +10,7 @@ License: LGPL-3.0-or-later
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
-from ..targets import Target
+from ..Targets import Target
 from GenomeUtils.Genome import Genome
 
 

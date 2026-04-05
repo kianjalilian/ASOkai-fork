@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/targets/target.py
+Filename: src/ASOkai/Targets/target.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -8,10 +8,10 @@ Description: This file defines the base Target class.
 License: LGPL-3.0-or-later
 """
 from abc import ABC
-from re import L
-from ..sites import Site
 from typing import Dict, List
-from ..utils import Serializable
+
+from ..Sites import Site
+from ..Utils import Serializable
 
 
 class Target(Serializable, ABC):

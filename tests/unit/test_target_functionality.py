@@ -4,9 +4,9 @@ Functional tests for Target and TargetGene classes.
 """
 import pytest
 from Bio.Seq import Seq
-from ASOkai.targets.target import Target
-from ASOkai.targets.target_gene import TargetGene
-from ASOkai.sites.genomic_site import GenomicSite
+from ASOkai.Targets.target import Target
+from ASOkai.Targets.target_gene import TargetGene
+from ASOkai.Sites.genomic_site import GenomicSite
 
 
 # Concrete implementation for testing Target abstract class

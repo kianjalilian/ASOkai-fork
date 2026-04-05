@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/sites/site.py
+Filename: src/ASOkai/Sites/site.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -10,7 +10,7 @@ License: LGPL-3.0-or-later
 from abc import ABC, abstractmethod
 from Bio.Seq import Seq
 from typing import Dict
-from ..utils import Serializable
+from ..Utils import Serializable
 
 
 class Site(Serializable, ABC):

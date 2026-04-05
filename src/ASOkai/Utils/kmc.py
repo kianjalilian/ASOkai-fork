@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/utils/kmc.py
+Filename: src/ASOkai/Utils/kmc.py
 Description: Subprocess wrapper for the KMC k-mer counter CLI.
 License: LGPL-3.0-or-later (this file only)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/analysis/intrinsic_features.py
+Filename: src/ASOkai/Analysis/intrinsic_features.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -10,7 +10,7 @@ License: LGPL-3.0-or-later
 from typing import Dict, Any, List
 
 from .base import SiteWideAnalysis
-from ..targets import Target
+from ..Targets import Target
 
 
 class IntrinsicFeaturesAnalysis(SiteWideAnalysis):

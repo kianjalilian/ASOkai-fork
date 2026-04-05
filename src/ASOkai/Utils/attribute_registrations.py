@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/utils/attribute_registrations.py
+Filename: src/ASOkai/Utils/attribute_registrations.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
 Version: 0.1.0
@@ -13,7 +13,7 @@ from Bio.Seq import Seq
 from GenomeUtils.Genome import Locus
 
 from .serializer import Serializable
-from ..targets import Target
+from ..Targets import Target
 
 
 def register_attributes() -> None:
