@@ -146,6 +146,15 @@ Steps are the individual, low-level building blocks of the pipeline. They are ge
 - **Description:** Loads an existing target gene object from disk.
 - **Dependencies:** `steps.create-target-gene-object`.
 
+## Third-party software and licenses
+
+External programs used by some workflows are not installed via `pip` with the ASOkai package. Obtain binaries according to your setup and respect each upstream license.
+
+### KMC
+
+[KMC](https://github.com/refresh-bio/KMC) is GPLv3-only; see the upstream repository for the license text.
+
+
 ## License
 
 This software is under L-GPL-3.0-later.

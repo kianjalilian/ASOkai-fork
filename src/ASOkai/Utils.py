@@ -8,7 +8,11 @@ Description: This file imports and exposes utility classes.
 License: LGPL-3.0-or-later
 """
 from .utils import Serializable
+from .utils import KMC
+from .utils import KMCDatabase
 
 __all__ = [
     "Serializable",
+    "KMC",
+    "KMCDatabase",
 ]

@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
   - python=3.12
+  - kmc=3.2.4
   - biopython>=1.83
   - pyyaml>=6.0
   - requests>=2.32
