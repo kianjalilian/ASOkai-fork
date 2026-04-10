@@ -117,7 +117,7 @@ class KMCDatabase:
             ci (int | None): Exclude k-mers occurring fewer times than this. Defaults to 2.
             cs (int | None): Maximum counter value. Defaults to 255.
             cx (int | None): Exclude k-mers occurring more times than this. Defaults to 1_000_000_000.
-            b (bool): Use canonical k-mers. Defaults to True.
+            b (bool): If True, passes KMC ``-b`` (disable canonical k-mers).
             r (bool): Keep all data in RAM. Defaults to False.
             n (int | None): Number of bins.
             sf (int | None): FASTQ reading threads.
@@ -235,7 +235,7 @@ class KMC:
         ci: int | None = None,
         cs: int | None = None,
         cx: int | None = None,
-        b: bool = True,
+        b: bool = False,
         r: bool = False,
         n: int | None = None,
         sf: int | None = None,
@@ -252,8 +252,10 @@ class KMC:
         check: bool = True,
         additional_args: Sequence[str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Execute ``kmc`` with the provided parameters."""
-        
+        """
+        Execute ``kmc`` with the provided parameters.
+        """
+
         if not 1 <= k <= 256:
             raise ValueError(f"k must be between 1 and 256, got {k}")
         if not 1 <= m <= 1024:

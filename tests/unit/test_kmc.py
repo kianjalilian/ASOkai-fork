@@ -40,6 +40,20 @@ def test_kmc_run_minimal_args(kmc: KMC, tmp_path: Path) -> None:
 
     argv = mock_run.call_args.args[0]
     assert argv[:4] == [kmc.executable, "-k21", "-m8", "-fm"]
+    assert "-b" not in argv  # default b=False: canonical k-mers (no -b)
+
+
+def test_kmc_run_b_true_disables_canonical(kmc: KMC, tmp_path: Path) -> None:
+    inp = tmp_path / "in.fa"
+    out = tmp_path / "out"
+    work = tmp_path / "work"
+
+    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    with patch("ASOkai.Utils._kmc.subprocess.run", return_value=completed) as mock_run:
+        kmc.run(inp, out, work, k=21, m=8, f="fm", b=True)
+
+    argv = mock_run.call_args.args[0]
+    assert "-b" in argv
 
 
 def test_kmc_run_canonical_off_and_flags(kmc: KMC, tmp_path: Path) -> None:
@@ -64,7 +78,7 @@ def test_kmc_run_canonical_off_and_flags(kmc: KMC, tmp_path: Path) -> None:
     argv = mock_run.call_args.args[0]
     assert "-v" in argv
     assert "-fa" in argv
-    assert "-b" not in argv  # b=False suppresses the flag
+    assert "-b" not in argv
     assert "-sm" in argv
     assert "-hc" in argv
     assert "-ci1" in argv
