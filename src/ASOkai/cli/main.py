@@ -52,7 +52,6 @@ def main(ctx: click.Context) -> None:
 # ---------------------------------------------------------------------------
 
 @main.command("list")
-@verbose_option
 @click.argument("unit", type=click.Choice(["steps", "tasks", "workflows"]))
 def list_cmd(unit: str) -> None:
     """List available steps, tasks, or workflows."""

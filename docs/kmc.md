@@ -7,9 +7,10 @@ KMC is third-party GPLv3-only software. See the project [README](../README.md) (
 ## Imports
 
 ```python
-from ASOkai.Utils import KMC
-from ASOkai.Utils.KMCTools import Simple, Transform, Filter, Complex
+from ASOkai.Utils import KMC, KMCTools
 ```
+
+Use `KMCTools.Simple`, `KMCTools.Transform`, `KMCTools.Filter`, and `KMCTools.Complex` (the `KMCTools` name is the `_kmc_tools` module re-exported from `ASOkai.Utils`).
 
 ## `KMC` — running `kmc`
 
@@ -69,7 +70,7 @@ Shared options:
 ### `Transform`
 
 ```python
-Transform().reduce("err_kmers", cx=10).reduce("valid_kmers", ci=11).histogram("histo.txt").dump("dump.txt").run("db", t=8)
+KMCTools.Transform().reduce("err_kmers", cx=10).reduce("valid_kmers", ci=11).histogram("histo.txt").dump("dump.txt").run("db", t=8)
 ```
 
 `sort`, `reduce`, `compact`, `histogram`, `dump`, `set_counts`; then `run(input_prefix, …)` with shared options from the table above.
@@ -77,7 +78,7 @@ Transform().reduce("err_kmers", cx=10).reduce("valid_kmers", ci=11).histogram("h
 ### `Simple`
 
 ```python
-Simple().union("kmers1_kmers2_union", cs=65536, oc="left").intersect("intersect_kmers1_kmers2").intersect("intersect_max_kmers1_kmers2", oc="max").run("kmers1", "kmers2", input1_ci=3, input1_cx=70000, t=8)
+KMCTools.Simple().union("kmers1_kmers2_union", cs=65536, oc="left").intersect("intersect_kmers1_kmers2").intersect("intersect_max_kmers1_kmers2", oc="max").run("kmers1", "kmers2", input1_ci=3, input1_cx=70000, t=8)
 ```
 
 `intersect`, `union`, `kmers_subtract`, `counters_subtract`, `reverse_kmers_subtract`, `reverse_counters_subtract`; each takes `output` and optional `ci`, `cx`, `cs`, `o`, `oc`. `run(input1, input2, …)` adds `input1_ci` / `input1_cx` / `input2_ci` / `input2_cx` and shared options.
@@ -85,7 +86,7 @@ Simple().union("kmers1_kmers2_union", cs=65536, oc="left").intersect("intersect_
 ### `Filter`
 
 ```python
-Filter().run("kmc_db", "input.fastq", "filtered.fastq", db_ci=3, read_ci=0.5, read_cx=1.0, t=8)
+KMCTools.Filter().run("kmc_db", "input.fastq", "filtered.fastq", db_ci=3, read_ci=0.5, read_cx=1.0, t=8)
 ```
 
 `trim` / `hm` (filter-level `-t` / `-hm`); `db_ci` / `db_cx` on the KMC DB; `read_ci` / `read_cx` / `read_f` on input reads (`read_ci` / `read_cx` may be int or fraction in `[0, 1]`); `output_f` on the output (omit to match input). Thread count is the global `-t` from the shared options table, not `trim`.
@@ -93,7 +94,7 @@ Filter().run("kmc_db", "input.fastq", "filtered.fastq", db_ci=3, read_ci=0.5, re
 ### `Complex`
 
 ```python
-Complex().run("/path/to/ops.txt", t=8)
+KMCTools.Complex().run("/path/to/ops.txt", t=8)
 ```
 
 Passes one **operations definition file** path: `INPUT:` (`name = db_path` with optional `-ci` / `-cx`), then `OUTPUT:` (expression with `* - ~ +` for intersect / kmers_subtract / counters_subtract / union, optional `[c_mode]`, optional output `-ci` / `-cx` / `-cs`). Full syntax is in `kmc_tools complex` help.

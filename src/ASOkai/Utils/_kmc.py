@@ -84,7 +84,7 @@ class KMCDatabase:
         cx = int(kwargs.get("cx", 1e9))
         hc = bool(kwargs.get("homopolymer_compressed", False))
 
-        return (directory / f"{stem}.k{k}.ci{ci}.cs{cs}.cx{format(cx, ".0e").replace("e+", "e").replace("e0", "e")}{'.hc' if hc else ''}").resolve()
+        return (directory / f"{stem}.k{k}.ci{ci}.cs{cs}.cx{format(int(cx), '.0e').replace('e+', 'e').replace('e0', 'e')}{'.hc' if hc else ''}").resolve()
 
     @classmethod
     def build(
