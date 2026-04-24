@@ -43,8 +43,5 @@ where = ["src"]
 
 [project.scripts]
 ASOkai              = "ASOkai.cli.main:main"
-download-genome     = "pipeline.steps.download_genome:main"
-create-target-gene  = "pipeline.steps.create_target_gene:main"
-intrinsic-features  = "pipeline.steps.intrinsic_features:main"
 
 

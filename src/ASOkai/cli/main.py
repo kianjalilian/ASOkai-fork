@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Callable
 
 import click
 import yaml
@@ -47,6 +48,20 @@ def main(ctx: click.Context) -> None:
     ctx.ensure_object(dict)
 
 
+def _resolve_step_cli(step_name: str) -> Callable[[list[str] | None], int]:
+    """Return the CLI entrypoint for an internal step command."""
+    if step_name == "download-genome":
+        from pipeline.steps.download_genome import main as step_main
+        return step_main
+    if step_name == "create-target-gene":
+        from pipeline.steps.create_target_gene import main as step_main
+        return step_main
+    if step_name == "intrinsic-features":
+        from pipeline.steps.intrinsic_features import main as step_main
+        return step_main
+    raise KeyError(step_name)
+
+
 # ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------
@@ -61,6 +76,39 @@ def list_cmd(unit: str) -> None:
         return
     for name, obj in sorted(registry.items()):
         click.echo(f"  {name:<35} {obj.description}")
+
+
+# ---------------------------------------------------------------------------
+# step
+# ---------------------------------------------------------------------------
+
+@main.command(
+    "step",
+    hidden=True,
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
+@click.argument("step_name")
+@click.pass_context
+def step_cmd(ctx: click.Context, step_name: str) -> None:
+    """Dispatch an internal step CLI for CWL and debugging."""
+    if step_name not in get_steps():
+        raise click.ClickException(f"Unknown step '{step_name}'.")
+
+    try:
+        step_main = _resolve_step_cli(step_name)
+    except KeyError as exc:
+        raise click.ClickException(
+            f"Step '{step_name}' does not expose an internal CLI entrypoint."
+        ) from exc
+
+    try:
+        exit_code = step_main(list(ctx.args))
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 1
+        raise click.exceptions.Exit(code) from exc
+
+    if exit_code:
+        raise click.exceptions.Exit(exit_code)
 
 
 # ---------------------------------------------------------------------------

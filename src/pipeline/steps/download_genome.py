@@ -66,7 +66,7 @@ class DownloadGenomeStep:
                     p.unlink()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint called by CWL baseCommand: download-genome."""
     parser = argparse.ArgumentParser(
         description="Download genome DNA, cDNA, and GTF from Ensembl.",
@@ -76,7 +76,7 @@ def main() -> int:
     parser.add_argument("--species", required=True, help="Species name (e.g. homo_sapiens).")
     parser.add_argument("--outdir", required=True, type=Path, help="Root directory for downloaded genomes.")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     downloader = EnsemblGenomeDownloader(
         assembly_id=args.assembly,

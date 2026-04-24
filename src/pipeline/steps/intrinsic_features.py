@@ -58,7 +58,7 @@ class IntrinsicFeaturesStep:
                 p.unlink()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint called by CWL baseCommand: intrinsic-features."""
     parser = argparse.ArgumentParser(
         description="Compute intrinsic features for ASO target sites.",
@@ -69,7 +69,7 @@ def main() -> int:
     parser.add_argument("--target-name", default=None, help="Gene name. Used if --target-id is not provided.")
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory.")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
     if not args.target_id and not args.target_name:

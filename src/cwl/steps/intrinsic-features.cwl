@@ -2,7 +2,7 @@
 cwlVersion: v1.2
 class: CommandLineTool
 
-baseCommand: intrinsic-features
+baseCommand: [ASOkai, step, intrinsic-features]
 
 doc: |
   Computes intrinsic features (GC content, T-runs, AT-runs) for each ASO

@@ -2,7 +2,7 @@
 cwlVersion: v1.2
 class: CommandLineTool
 
-baseCommand: create-target-gene
+baseCommand: [ASOkai, step, create-target-gene]
 
 doc: |
   Creates a target gene object from genome data and extracts ASO target sites.

@@ -61,7 +61,7 @@ class CreateTargetGeneStep:
                 p.unlink()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint called by CWL baseCommand: create-target-gene."""
     parser = argparse.ArgumentParser(
         description="Create a target gene object and extract ASO target sites.",
@@ -77,7 +77,7 @@ def main() -> int:
     parser.add_argument("--species",     required=True, help="Species name (e.g. Homo_sapiens).")
     parser.add_argument("--outdir",      required=True, type=Path, help="Output directory.")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
     if not args.target_id and not args.target_name:

@@ -2,7 +2,7 @@
 cwlVersion: v1.2
 class: CommandLineTool
 
-baseCommand: download-genome
+baseCommand: [ASOkai, step, download-genome]
 
 doc: |
   Download genome DNA (primary assembly FASTA), cDNA (FASTA), and annotation
