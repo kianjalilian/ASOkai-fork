@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pipeline.base import Runnable
-from pipeline.steps.intrinsic_features import IntrinsicFeaturesStep
-from pipeline.tasks.instantiate_target_gene import InstantiateTargetGeneTask
+from ASOkai._pipeline.base import Runnable
+from ASOkai._pipeline.steps.intrinsic_features import IntrinsicFeaturesStep
+from ASOkai._pipeline.tasks.instantiate_target_gene import InstantiateTargetGeneTask
 
 
 class StandardWorkflow:

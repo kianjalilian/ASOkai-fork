@@ -1,6 +1,6 @@
 """
 Filename: src/pipeline/cwl_generation.py
-Description: Generate multi-step CWL workflow documents from pipeline steps.
+Description: Generate multi-step CWL workflow documents from ASOkai._pipeline steps.
 License: LGPL-3.0-or-later
 """
 
@@ -11,8 +11,8 @@ from typing import Any
 
 import yaml
 
-from pipeline.base import Step
-from pipeline.registry import get_steps
+from ASOkai._pipeline.base import Step
+from ASOkai._pipeline.registry import get_steps
 
 
 def _cwl_step_id(step_name: str) -> str:

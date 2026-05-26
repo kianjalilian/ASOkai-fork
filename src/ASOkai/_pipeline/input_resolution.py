@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pipeline import config as cfg
-from pipeline.base import Step
-from pipeline.registry import get_steps
+from ASOkai._pipeline import config as cfg
+from ASOkai._pipeline.base import Step
+from ASOkai._pipeline.registry import get_steps
 
 
 InputSource = Literal[

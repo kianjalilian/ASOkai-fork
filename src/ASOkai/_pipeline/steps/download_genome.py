@@ -17,7 +17,7 @@ from GenomeUtils.Downloaders import EnsemblGenomeDownloader
 class DownloadGenomeStep:
     name = "download-genome"
     description = "[core] Downloads genome DNA (primary assembly FASTA), cDNA (FASTA), and annotation (GTF)."
-    cli_module = "pipeline.steps.download_genome"
+    cli_module = "ASOkai._pipeline.steps.download_genome"
     dependencies: list[str] = []
     config_map = {
         "assembly": "genome.assembly_id",
@@ -29,7 +29,7 @@ class DownloadGenomeStep:
 
     @property
     def cwl_path(self) -> str:
-        return str(files("cwl.steps").joinpath("download-genome.cwl"))
+        return str(files("ASOkai._cwl.steps").joinpath("download-genome.cwl"))
 
 
     def outdir(self, config: dict) -> Path:

@@ -2,7 +2,7 @@
 
 from click.testing import CliRunner
 
-from cli.main import main
+from ASOkai._cli.main import main
 
 
 def test_hidden_step_command_is_not_listed_in_help():
@@ -103,9 +103,9 @@ def test_verbose_describe_step_shows_dependency_tree():
 def test_run_config_accepts_multiple_values_after_one_flag(monkeypatch):
     captured = {}
 
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {"target": {"k": 16}})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {"target": {"k": 16}})
     monkeypatch.setattr(
-        "cli.main.runner.run_all",
+        "ASOkai._cli.main.runner.run_all",
         lambda runnables, config, **kwargs: captured.update(config=config),
     )
 
@@ -130,9 +130,9 @@ def test_run_config_accepts_multiple_values_after_one_flag(monkeypatch):
 def test_run_config_accepts_repeated_flags(monkeypatch):
     captured = {}
 
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {"target": {"k": 16}})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {"target": {"k": 16}})
     monkeypatch.setattr(
-        "cli.main.runner.run_all",
+        "ASOkai._cli.main.runner.run_all",
         lambda runnables, config, **kwargs: captured.update(config=config),
     )
 
@@ -158,9 +158,9 @@ def test_run_config_accepts_repeated_flags(monkeypatch):
 def test_run_defaults_to_standard_workflow(monkeypatch):
     captured = {}
 
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {})
     monkeypatch.setattr(
-        "cli.main.runner.run_all",
+        "ASOkai._cli.main.runner.run_all",
         lambda runnables, config, **kwargs: captured.update(runnables=runnables),
     )
 
@@ -172,7 +172,7 @@ def test_run_defaults_to_standard_workflow(monkeypatch):
 
 
 def test_run_rejects_unknown_step(monkeypatch):
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {})
 
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--steps", "not-a-step"])
@@ -182,7 +182,7 @@ def test_run_rejects_unknown_step(monkeypatch):
 
 
 def test_run_rejects_unknown_task(monkeypatch):
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {})
 
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--tasks", "not-a-task"])
@@ -192,7 +192,7 @@ def test_run_rejects_unknown_task(monkeypatch):
 
 
 def test_run_rejects_unknown_workflow(monkeypatch):
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {})
 
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--workflow", "not-a-workflow"])
@@ -202,7 +202,7 @@ def test_run_rejects_unknown_workflow(monkeypatch):
 
 
 def test_run_config_rejects_malformed_override(monkeypatch):
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {})
 
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--config", "target.k"])
@@ -214,9 +214,9 @@ def test_run_config_rejects_malformed_override(monkeypatch):
 def test_run_config_preserves_yaml_scalar_types(monkeypatch):
     captured = {}
 
-    monkeypatch.setattr("cli.main.cfg.load", lambda _path: {"target": {}})
+    monkeypatch.setattr("ASOkai._cli.main.cfg.load", lambda _path: {"target": {}})
     monkeypatch.setattr(
-        "cli.main.runner.run_all",
+        "ASOkai._cli.main.runner.run_all",
         lambda runnables, config, **kwargs: captured.update(config=config),
     )
 
@@ -241,7 +241,7 @@ def test_run_config_preserves_yaml_scalar_types(monkeypatch):
 
 
 def test_step_command_dispatches_to_builtin_step(monkeypatch):
-    from pipeline.steps import download_genome
+    from ASOkai._pipeline.steps import download_genome
 
     received: dict[str, list[str] | None] = {}
 

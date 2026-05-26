@@ -2,8 +2,8 @@
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from pipeline import runner
-from pipeline.plan import ExecutionPlan
+from ASOkai._pipeline import runner
+from ASOkai._pipeline.plan import ExecutionPlan
 
 
 @pytest.fixture
@@ -25,14 +25,14 @@ def test_run_step_unknown_step(config):
 
 
 def test_run_step_skips_when_outputs_exist(config, tmp_path):
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
     step = DownloadGenomeStep()
     base = tmp_path / "GRCh38" / "genomes" / "ensembl" / "114"
     base.mkdir(parents=True)
     for p in step.output_paths(config).values():
         p.touch()
 
-    with patch("pipeline.executors.ToilExecutor.run") as mock_run:
+    with patch("ASOkai._pipeline.executors.ToilExecutor.run") as mock_run:
         result = runner.run_step("download-genome", config)
         mock_run.assert_not_called()
     assert result is not None
@@ -47,7 +47,7 @@ def test_run_step_dry_run_returns_outputs(config):
 
 
 def test_run_step_dry_run_does_not_call_toil(config):
-    with patch("pipeline.executors.ToilExecutor.run") as mock_run:
+    with patch("ASOkai._pipeline.executors.ToilExecutor.run") as mock_run:
         runner.run_step("download-genome", config, dry_run=True, force=True)
         mock_run.assert_not_called()
 
@@ -80,21 +80,21 @@ def test_run_step_uses_configured_download_source(config):
 
 
 def test_run_step_force_does_not_cleanup_on_dry_run(config, tmp_path):
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
     step = DownloadGenomeStep()
     base = tmp_path / "GRCh38" / "genomes" / "ensembl" / "114"
     base.mkdir(parents=True)
     for p in step.output_paths(config).values():
         p.touch()
 
-    with patch("pipeline.executors.ToilExecutor.run"):
+    with patch("ASOkai._pipeline.executors.ToilExecutor.run"):
         runner.run_step("download-genome", config, force=True, dry_run=True)
 
     assert step.outputs_exist(config) is True
 
 
 def test_run_step_missing_dependency_raises(config):
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
     step = DownloadGenomeStep()
     step.dependencies = ["build-genome"]
@@ -117,8 +117,8 @@ def test_run_step_missing_dependency_raises(config):
         "download-genome": step,
         "build-genome": mock_build,
     }
-    with patch("pipeline.runner.get_steps", return_value=registry), \
-         patch("pipeline.registry.get_steps", return_value=registry):
+    with patch("ASOkai._pipeline.runner.get_steps", return_value=registry), \
+         patch("ASOkai._pipeline.registry.get_steps", return_value=registry):
         with pytest.raises(RuntimeError, match="requires 'build-genome'"):
             runner.run_step("download-genome", config, recursive=False)
 
@@ -148,7 +148,7 @@ def test_run_workflow_unknown_raises(workflow_config):
 
 
 def test_run_workflow_dry_run_does_not_call_toil(workflow_config):
-    with patch("pipeline.executors.ToilExecutor.run") as mock_run:
+    with patch("ASOkai._pipeline.executors.ToilExecutor.run") as mock_run:
         runner.run_workflow("standard", workflow_config, dry_run=True)
     mock_run.assert_not_called()
 
@@ -198,8 +198,8 @@ def test_run_all_empty_runnables_raises(workflow_config):
 
 
 def test_run_plan_multistep_dry_run_returns_final_outputs(workflow_config):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
     executor = MagicMock()
     plan = ExecutionPlan(
@@ -221,8 +221,8 @@ def test_run_plan_multistep_dry_run_returns_final_outputs(workflow_config):
 
 def test_flatten_workflow_expands_task_then_step():
     """A workflow with a Task followed by a Step flattens to their Steps in order."""
-    from pipeline.steps.download_genome import DownloadGenomeStep
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
 
     download = DownloadGenomeStep()
     create = CreateTargetGeneStep()
@@ -245,7 +245,7 @@ def test_flatten_workflow_expands_task_then_step():
         def outputs_exist(self, c): return False
         def cleanup(self, c): return None
 
-    from pipeline.plan import _flatten_runnable
+    from ASOkai._pipeline.plan import _flatten_runnable
 
     objs = _flatten_runnable(MiniWorkflow())
     assert [s.name for s in objs] == ["download-genome", "create-target-gene"]
@@ -253,8 +253,8 @@ def test_flatten_workflow_expands_task_then_step():
 
 def test_flatten_workflow_expands_nested_workflow():
     """A workflow containing a nested workflow flattens all steps recursively."""
-    from pipeline.steps.download_genome import DownloadGenomeStep
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
 
     download = DownloadGenomeStep()
     create = CreateTargetGeneStep()
@@ -277,7 +277,7 @@ def test_flatten_workflow_expands_nested_workflow():
         def outputs_exist(self, c): return False
         def cleanup(self, c): return None
 
-    from pipeline.plan import _flatten_runnable
+    from ASOkai._pipeline.plan import _flatten_runnable
 
     objs = _flatten_runnable(Outer())
     assert [s.name for s in objs] == ["download-genome", "create-target-gene"]
@@ -296,7 +296,7 @@ def test_flatten_workflow_cycle_raises():
 
     w = SelfRef()
     w.members = [w]
-    from pipeline.plan import _flatten_runnable
+    from ASOkai._pipeline.plan import _flatten_runnable
 
     with pytest.raises(ValueError, match="cycle"):
         _flatten_runnable(w)

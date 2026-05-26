@@ -15,7 +15,7 @@ from importlib.resources import files
 class IntrinsicFeaturesStep:
     name = "intrinsic-features"
     description = "[analysis] Computes intrinsic features (GC content, T-runs, AT-runs) for each ASO target site."
-    cli_module = "pipeline.steps.intrinsic_features"
+    cli_module = "ASOkai._pipeline.steps.intrinsic_features"
     dependencies: list[str] = ["create-target-gene"]
     config_map = {
         "target_id":   "target.target_id",
@@ -30,7 +30,7 @@ class IntrinsicFeaturesStep:
 
     @property
     def cwl_path(self) -> str:
-        return str(files("cwl.steps").joinpath("intrinsic-features.cwl"))
+        return str(files("ASOkai._cwl.steps").joinpath("intrinsic-features.cwl"))
 
     def _effective_target_id(self, config: dict) -> str:
         return config["target"].get("target_id") or config["target"].get("target_name")

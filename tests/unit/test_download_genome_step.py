@@ -1,8 +1,8 @@
 """Tests for DownloadGenomeStep."""
 import pytest
 from pathlib import Path
-from pipeline.steps.download_genome import DownloadGenomeStep
-from pipeline.base import Step
+from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
+from ASOkai._pipeline.base import Step
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_cwl_path_is_file(step):
 
 
 def test_main_downloads_with_mocked_ensembl_downloader(monkeypatch, tmp_path, capsys):
-    from pipeline.steps import download_genome
+    from ASOkai._pipeline.steps import download_genome
 
     captured = {}
 

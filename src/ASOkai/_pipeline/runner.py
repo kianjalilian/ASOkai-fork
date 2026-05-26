@@ -10,16 +10,16 @@ import logging
 import tempfile
 from pathlib import Path
 
-from pipeline.cwl_generation import generate_cwl
-from pipeline.executors import Executor, ToilExecutor
-from pipeline.base import Runnable, Step, Task, Workflow
-from pipeline.input_resolution import (
+from ASOkai._pipeline.cwl_generation import generate_cwl
+from ASOkai._pipeline.executors import Executor, ToilExecutor
+from ASOkai._pipeline.base import Runnable, Step, Task, Workflow
+from ASOkai._pipeline.input_resolution import (
     resolve_step_inputs,
     resolve_step_sequence_inputs,
     to_cwl_inputs,
 )
-from pipeline.plan import ExecutionPlan, build_plan
-from pipeline.registry import get_steps, get_tasks, get_workflows
+from ASOkai._pipeline.plan import ExecutionPlan, build_plan
+from ASOkai._pipeline.registry import get_steps, get_tasks, get_workflows
 
 logger = logging.getLogger(__name__)
 

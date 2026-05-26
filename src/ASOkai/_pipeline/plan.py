@@ -15,7 +15,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pipeline.base import Runnable, Step, Task, Workflow
+from ASOkai._pipeline.base import Runnable, Step, Task, Workflow
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def build_plan(
        pre_resolved; the rest go into steps_to_run.
     """
     if _registry is None:
-        from pipeline.registry import get_steps
+        from ASOkai._pipeline.registry import get_steps
         _registry = get_steps()
 
     # 1 + 2: flatten and deduplicate

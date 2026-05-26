@@ -16,9 +16,9 @@ from typing import Callable, cast
 import click
 import yaml
 
-from pipeline import config as cfg
-from pipeline import runner
-from pipeline.registry import get_steps, get_tasks, get_workflows
+from ASOkai._pipeline import config as cfg
+from ASOkai._pipeline import runner
+from ASOkai._pipeline.registry import get_steps, get_tasks, get_workflows
 
 DEFAULT_CONFIG = Path("config.yaml")
 
@@ -110,7 +110,7 @@ def list_cmd(unit: str) -> None:
 
 def _expand_members_for_describe(members: list) -> list[str]:
     """Recursively expand workflow members to an ordered list of step names."""
-    from pipeline.base import Step, Task, Workflow
+    from ASOkai._pipeline.base import Step, Task, Workflow
     out: list[str] = []
     for member in members:
         if isinstance(member, Workflow):

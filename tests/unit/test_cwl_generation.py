@@ -2,8 +2,8 @@
 import pytest
 import yaml
 
-from pipeline.cwl_generation import generate_cwl
-from pipeline.registry import get_steps
+from ASOkai._pipeline.cwl_generation import generate_cwl
+from ASOkai._pipeline.registry import get_steps
 
 
 @pytest.fixture
@@ -26,8 +26,8 @@ def workflow_config(tmp_path):
 
 
 def test_generate_cwl_wires_download_outputs_into_create_target_gene(workflow_config):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
     doc = yaml.safe_load(
         generate_cwl(
@@ -44,7 +44,7 @@ def test_generate_cwl_wires_download_outputs_into_create_target_gene(workflow_co
 
 
 def test_generate_cwl_pre_resolved_dependency_outputs_are_file_inputs(tmp_path):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
 
     config = {
         "datadir": str(tmp_path),
@@ -77,7 +77,7 @@ def test_generate_cwl_pre_resolved_dependency_outputs_are_file_inputs(tmp_path):
 
 
 def test_generate_cwl_input_overrides_are_nullable_file_inputs_when_not_wired(workflow_config):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
 
     doc = yaml.safe_load(generate_cwl([CreateTargetGeneStep()], {}, workflow_config))
 
@@ -87,8 +87,8 @@ def test_generate_cwl_input_overrides_are_nullable_file_inputs_when_not_wired(wo
 
 
 def test_generate_cwl_outputs_come_from_final_step_only(workflow_config):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
     doc = yaml.safe_load(
         generate_cwl(
@@ -105,8 +105,8 @@ def test_generate_cwl_outputs_come_from_final_step_only(workflow_config):
 
 
 def test_generate_cwl_normalizes_step_ids_with_underscores(workflow_config):
-    from pipeline.steps.create_target_gene import CreateTargetGeneStep
-    from pipeline.steps.download_genome import DownloadGenomeStep
+    from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+    from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
     doc = yaml.safe_load(
         generate_cwl(

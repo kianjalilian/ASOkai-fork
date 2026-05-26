@@ -1,8 +1,8 @@
 """Tests for CreateTargetGeneStep."""
 import pytest
 from pathlib import Path
-from pipeline.steps.create_target_gene import CreateTargetGeneStep
-from pipeline.base import Step
+from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+from ASOkai._pipeline.base import Step
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ def test_cwl_path_is_file(step):
 
 
 def test_main_rejects_missing_target_identifier(tmp_path):
-    from pipeline.steps import create_target_gene
+    from ASOkai._pipeline.steps import create_target_gene
 
     with pytest.raises(SystemExit) as excinfo:
         create_target_gene.main(
@@ -115,7 +115,7 @@ def test_main_rejects_missing_target_identifier(tmp_path):
 
 
 def test_main_accepts_target_name_only_with_mocked_genome_creation(monkeypatch, tmp_path):
-    from pipeline.steps import create_target_gene
+    from ASOkai._pipeline.steps import create_target_gene
     import ASOkai.Targets as targets_mod
     import GenomeUtils.Genome as genome_mod
 

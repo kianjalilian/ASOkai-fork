@@ -1,8 +1,8 @@
 """Tests for StandardWorkflow."""
 import pytest
-from pipeline.workflows.standard import StandardWorkflow
-from pipeline.base import Runnable, Workflow, Step, Task
-from pipeline.plan import _flatten_runnable
+from ASOkai._pipeline.workflows.standard import StandardWorkflow
+from ASOkai._pipeline.base import Runnable, Workflow, Step, Task
+from ASOkai._pipeline.plan import _flatten_runnable
 
 
 @pytest.fixture

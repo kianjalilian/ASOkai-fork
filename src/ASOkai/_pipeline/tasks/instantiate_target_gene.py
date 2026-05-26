@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pipeline.base import Step
-from pipeline.steps.create_target_gene import CreateTargetGeneStep
-from pipeline.steps.download_genome import DownloadGenomeStep
+from ASOkai._pipeline.base import Step
+from ASOkai._pipeline.steps.create_target_gene import CreateTargetGeneStep
+from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
 
 class InstantiateTargetGeneTask:

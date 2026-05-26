@@ -4,9 +4,9 @@ ASOkai supports external plugins to add custom steps, tasks, and workflows witho
 
 ## How Plugins Work
 
-The registry (`ASOkai.pipeline.registry`) loads plugins at runtime using `importlib.metadata.entry_points`. Your external package just needs to:
+The internal registry loads plugins at runtime using `importlib.metadata.entry_points`. Your external package just needs to:
 
-1. Implement a class that follows the `Step` protocol (defined in `ASOkai.pipeline.base`)
+1. Implement a class that follows the `Step` protocol (importable from `ASOkai.plugin_api`)
 2. Declare an entry point in your `pyproject.toml`
 
 ASOkai will automatically discover and instantiate your plugin when the CLI runs.
@@ -21,6 +21,7 @@ Create a file in your external package, e.g. `my_plugin/steps/my_step.py`:
 """my_plugin/steps/my_step.py"""
 from pathlib import Path
 from importlib.resources import files
+from ASOkai.plugin_api import Step
 
 class MyCustomStep:
     name = "my-custom-step"
@@ -151,9 +152,10 @@ ASOkai run my-custom-step --config config.yaml
 
 Tasks and workflows do **not** ship static CWL files. ASOkai generates workflow CWL at runtime from your step definitions.
 
-- **`PipelineUnit`** (`pipeline.base.PipelineUnit`): shared base protocol — `name`, `description`, `outdir`, `output_paths`, `outputs_exist`, `cleanup`. `Step`, `Task`, and `Workflow` all extend it.
-- **Task** (`pipeline.base.Task`): `steps` — ordered list of **step** names only.
-- **Workflow** (`pipeline.base.Workflow`): `units` — ordered `("step", name)`, `("task", name)`, or `("workflow", name)` pairs (nested workflows allowed).
+- **Runnable** (`ASOkai.plugin_api.Runnable`): shared protocol — `name`, `description`, `output_paths`, `outputs_exist`, and `cleanup`.
+- **Step** (`ASOkai.plugin_api.Step`): atomic CWL-backed pipeline unit.
+- **Task** (`ASOkai.plugin_api.Task`): ordered list of `Step` objects.
+- **Workflow** (`ASOkai.plugin_api.Workflow`): ordered list of runnable members, including steps, tasks, or nested workflows.
 
 The process is the same—use entry points `asokai.tasks` and `asokai.workflows` respectively:
 
@@ -167,7 +169,7 @@ my-workflow = "my_plugin.workflows.my_workflow:MyCustomWorkflow"
 
 ## Key Points
 
-- **Protocol-based:** Everything implements `PipelineUnit` at minimum. Steps add `dependencies`, `config_map`, and `cwl_path`. Tasks add `steps`. Workflows add `units` (see above).
+- **Protocol-based:** Everything implements `Runnable` at minimum. Steps add `dependencies`, `config_map`, `input_overrides`, `cli_module`, `cwl_path`, and `outdir`. Tasks add `steps`. Workflows add `members`.
 - **Entry points:** Declare in your `pyproject.toml` under `asokai.steps`, `asokai.tasks`, or `asokai.workflows`.
 - **CLI entrypoint:** Register a `[project.scripts]` entry for `baseCommand` to work.
 - **CWL files:** Use `importlib.resources.files()` to robustly locate your CWL files.

@@ -1,8 +1,8 @@
 """Tests for IntrinsicFeaturesStep."""
 import pytest
 from pathlib import Path
-from pipeline.steps.intrinsic_features import IntrinsicFeaturesStep
-from pipeline.base import Step
+from ASOkai._pipeline.steps.intrinsic_features import IntrinsicFeaturesStep
+from ASOkai._pipeline.base import Step
 
 
 @pytest.fixture
@@ -103,7 +103,7 @@ def test_cwl_path_is_file(step):
 
 
 def test_main_rejects_missing_target_identifier_before_analysis(tmp_path):
-    from pipeline.steps import intrinsic_features
+    from ASOkai._pipeline.steps import intrinsic_features
 
     with pytest.raises(SystemExit) as excinfo:
         intrinsic_features.main(

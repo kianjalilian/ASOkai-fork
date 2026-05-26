@@ -5,8 +5,8 @@ import pytest
 from pathlib import Path
 from typing import cast
 
-from pipeline.base import Runnable, Step
-from pipeline.plan import build_plan
+from ASOkai._pipeline.base import Runnable, Step
+from ASOkai._pipeline.plan import build_plan
 
 
 # ---------------------------------------------------------------------------

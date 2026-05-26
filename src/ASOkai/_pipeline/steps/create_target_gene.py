@@ -15,7 +15,7 @@ from importlib.resources import files
 class CreateTargetGeneStep:
     name = "create-target-gene"
     description = "[core] Creates a target gene object from genome data and extracts ASO target sites."
-    cli_module = "pipeline.steps.create_target_gene"
+    cli_module = "ASOkai._pipeline.steps.create_target_gene"
     dependencies: list[str] = ["download-genome"]
     config_map = {
         "target_id":   "target.target_id",
@@ -34,7 +34,7 @@ class CreateTargetGeneStep:
 
     @property
     def cwl_path(self) -> str:
-        return str(files("cwl.steps").joinpath("create-target-gene.cwl"))
+        return str(files("ASOkai._cwl.steps").joinpath("create-target-gene.cwl"))
 
     def _effective_target_id(self, config: dict) -> str:
         """Return target_id if present, fall back to target_name."""
