@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for ASOkai.Utils.kmc (KMC, KMCDatabase, KMCExecutionError)."""
 from __future__ import annotations
 

@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/pipeline/tasks/instantiate_target_gene.py
+Filename: src/ASOkai/_pipeline/tasks/instantiate_target_gene.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Task that downloads genome files and creates the configured target gene.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 from pathlib import Path

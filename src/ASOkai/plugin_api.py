@@ -1,10 +1,12 @@
+#!/usr/bin/env python
 """
-Public plugin contracts for ASOkai extension packages.
-
-The pipeline implementation is internal, but plugin authors need stable
-protocol imports for declaring steps, tasks, and workflows.
+Filename: src/ASOkai/plugin_api.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
+Description: Public plugin contracts for ASOkai extension packages.
+License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 from ASOkai._pipeline.base import Runnable, Step, Task, Workflow

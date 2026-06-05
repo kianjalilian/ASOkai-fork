@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/cli/main.py
+Filename: src/ASOkai/_cli/main.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: ASOkai CLI entry point.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 import argparse

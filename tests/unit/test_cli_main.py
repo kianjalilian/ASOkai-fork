@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for the public ASOkai CLI entrypoint."""
 
 from click.testing import CliRunner

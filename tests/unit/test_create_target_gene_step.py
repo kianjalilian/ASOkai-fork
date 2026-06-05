@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for CreateTargetGeneStep."""
 import pytest
 from pathlib import Path

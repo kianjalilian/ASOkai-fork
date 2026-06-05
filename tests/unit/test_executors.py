@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for pipeline execution backends."""
 from __future__ import annotations
 

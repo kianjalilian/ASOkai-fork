@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for pipeline runner logic."""
 import pytest
 import yaml

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for pipeline input resolution."""
 from pathlib import Path
 from unittest.mock import patch

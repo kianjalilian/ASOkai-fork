@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/pipeline/runner.py
+Filename: src/ASOkai/_pipeline/runner.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Executes planned pipeline steps with optional dry-run and CWL export.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 import logging

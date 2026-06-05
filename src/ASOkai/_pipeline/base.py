@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/pipeline/base.py
+Filename: src/ASOkai/_pipeline/base.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Base protocols that steps, tasks, and workflows must implement.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 from pathlib import Path

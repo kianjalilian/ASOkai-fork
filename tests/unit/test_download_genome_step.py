@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for DownloadGenomeStep."""
 import pytest
 from pathlib import Path

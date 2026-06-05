@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for ASOkai.Utils.KMCTools (Simple, Transform, Filter, Complex)."""
 from __future__ import annotations
 

@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/Utils/attribute_registrations.py
+Filename: src/ASOkai/Utils/_attribute_registrations.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
-Version: 0.1.0
+Version: 0.1.1
 Description: Registers external types for serialization with the Serializable class.
 License: LGPL-3.0-or-later
 """
-
-
 from Bio.Seq import Seq
 from GenomeUtils.Genome import Locus
 

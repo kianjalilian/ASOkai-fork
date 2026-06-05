@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/Targets/target_gene.py
+Filename: src/ASOkai/Targets/_target_gene.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
-Version: 0.1.0
+Version: 0.1.1
 Description: This file defines the TargetGene class for representing target genes.
 License: LGPL-3.0-or-later
 """

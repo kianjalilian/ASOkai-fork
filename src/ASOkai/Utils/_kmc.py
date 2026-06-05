@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/Utils/kmc.py
+Filename: src/ASOkai/Utils/_kmc.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Subprocess wrapper for the KMC k-mer counter CLI.
 License: LGPL-3.0-or-later (this file only)
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for pipeline config loading and resolution."""
 import pytest
 from pathlib import Path

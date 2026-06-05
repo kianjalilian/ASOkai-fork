@@ -1,7 +1,12 @@
+#!/usr/bin/env python
 """
-Execution backends for CWL documents.
+Filename: src/ASOkai/_cwl/executors.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
+Description: Execution backends for CWL documents.
+License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 import json

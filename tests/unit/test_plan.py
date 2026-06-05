@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for pipeline.plan.build_plan."""
 from __future__ import annotations
 

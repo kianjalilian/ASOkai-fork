@@ -1,7 +1,12 @@
+#!/usr/bin/env python
 """
-Helpers for reading packaged CWL metadata.
+Filename: src/ASOkai/_cwl/utils.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
+Description: Helpers for reading packaged CWL metadata.
+License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 from copy import deepcopy

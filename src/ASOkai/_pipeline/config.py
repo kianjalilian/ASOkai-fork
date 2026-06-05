@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/ASOkai/pipeline/config.py
+Filename: src/ASOkai/_pipeline/config.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Config loading and resolution utilities.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 from pathlib import Path

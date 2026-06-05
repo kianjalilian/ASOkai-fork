@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for generated CWL workflows."""
 import pytest
 import yaml

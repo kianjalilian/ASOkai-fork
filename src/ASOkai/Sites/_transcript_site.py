@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Filename: src/ASOkai/Sites/transcript_site.py
+Filename: src/ASOkai/Sites/_transcript_site.py
 Author: Arash Ayat
 Copyright: 2025, Alexander Schliep
-Version: 0.1.0
+Version: 0.1.1
 Description: This file defines the TranscriptSite class for representing transcript-anchored sites.
 License: LGPL-3.0-or-later
 """

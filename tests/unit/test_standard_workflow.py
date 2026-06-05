@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Tests for StandardWorkflow."""
 import pytest
 from ASOkai._pipeline.workflows.standard import StandardWorkflow

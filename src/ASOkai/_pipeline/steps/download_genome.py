@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/pipeline/steps/download_genome.py
+Filename: src/ASOkai/_pipeline/steps/download_genome.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: Definition and CLI entrypoint for the download-genome step.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 import argparse

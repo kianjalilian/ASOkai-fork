@@ -1,13 +1,12 @@
+#!/usr/bin/env python
 """
-Filename: src/pipeline/plan.py
+Filename: src/ASOkai/_pipeline/plan.py
+Author: Arash Ayat
+Copyright: 2025, Alexander Schliep
+Version: 0.1.1
 Description: ExecutionPlan dataclass and build_plan factory.
-             Flattens any mix of Steps, Tasks, and Workflows into a single
-             topologically-ordered, deduplicated execution plan, partitioning
-             already-completed steps into pre_resolved so the CWL generator
-             can wire them as File inputs rather than re-running them.
 License: LGPL-3.0-or-later
 """
-
 from __future__ import annotations
 
 import logging
