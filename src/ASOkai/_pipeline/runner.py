@@ -2,7 +2,7 @@
 """
 Filename: src/ASOkai/_pipeline/runner.py
 Author: Arash Ayat
-Copyright: 2025, Alexander Schliep
+Copyright: 2026, Alexander Schliep
 Version: 0.1.1
 Description: Executes planned pipeline steps with optional dry-run and CWL export.
 License: LGPL-3.0-or-later

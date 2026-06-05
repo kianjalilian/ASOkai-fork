@@ -2,7 +2,7 @@
 """
 Filename: src/ASOkai/Utils/_attribute_registrations.py
 Author: Arash Ayat
-Copyright: 2025, Alexander Schliep
+Copyright: 2026, Alexander Schliep
 Version: 0.1.1
 Description: Registers external types for serialization with the Serializable class.
 License: LGPL-3.0-or-later

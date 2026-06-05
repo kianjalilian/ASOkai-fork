@@ -53,7 +53,7 @@ ASOkai
 |   ├── kinetic-model
 |   ├── specific-off-targets
 |   ├── unspecific-off-targets
-|   ├── intrinsic-features
+|   └── intrinsic-features
 └── steps
     ├── download-genome
     ├── build-genome
@@ -172,4 +172,4 @@ External programs used by some workflows are not installed via `pip` with the AS
 
 This software is under L-GPL-3.0-later.
 
-Copyright 2025 Alexander Schliep
+Copyright 2026 Alexander Schliep

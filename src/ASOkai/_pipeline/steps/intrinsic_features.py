@@ -2,7 +2,7 @@
 """
 Filename: src/ASOkai/_pipeline/steps/intrinsic_features.py
 Author: Arash Ayat
-Copyright: 2025, Alexander Schliep
+Copyright: 2026, Alexander Schliep
 Version: 0.1.1
 Description: Definition and CLI entrypoint for the intrinsic-features step.
 License: LGPL-3.0-or-later

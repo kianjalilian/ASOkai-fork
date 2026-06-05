@@ -2,7 +2,7 @@
 """
 Filename: src/ASOkai/_cwl/generation.py
 Author: Arash Ayat
-Copyright: 2025, Alexander Schliep
+Copyright: 2026, Alexander Schliep
 Version: 0.1.1
 Description: Generate multi-step CWL workflow documents from ASOkai pipeline steps.
 License: LGPL-3.0-or-later

@@ -2,7 +2,7 @@
 """
 Filename: src/ASOkai/_pipeline/registry.py
 Author: Arash Ayat
-Copyright: 2025, Alexander Schliep
+Copyright: 2026, Alexander Schliep
 Version: 0.1.1
 Description: Registry for pipeline steps, tasks, and workflows.
 License: LGPL-3.0-or-later
