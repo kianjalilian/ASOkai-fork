@@ -7,13 +7,12 @@ Version: 0.1.1
 Description: This file defines the IntrinsicFeaturesAnalysis class for analyzing intrinsic features of target sites.
 License: LGPL-3.0-or-later
 """
-from typing import Dict, Any, List
+from typing import Any
 
-from ._base import SiteWideAnalysis
-from ..Targets import Target
+from ._base import SiteSpecificAnalysis
 
 
-class IntrinsicFeaturesAnalysis(SiteWideAnalysis):
+class IntrinsicFeaturesAnalysis(SiteSpecificAnalysis):
     """
     Analyzes intrinsic features for each target site.
 
@@ -26,58 +25,60 @@ class IntrinsicFeaturesAnalysis(SiteWideAnalysis):
         - CpG_content: The proportion of CpG dinucleotides (between 0 and 1).
     """
 
-    def __init__(self, target: Target, features: List[str] = None, **kwargs):
+    def __init__(self, sites: list, features: list[str] | None = None, **kwargs):
         """
         Initializes the IntrinsicFeaturesAnalysis object.
         
         Args:
-            target: The target to analyze.
+            sites: The sites to analyze.
             features: The features to analyze, defaults to all features.
             kwargs: Additional keyword arguments.
         """
-        super().__init__(target, **kwargs)
+        super().__init__(sites, **kwargs)
         self.features = features
         if self.features is None:
-            self.features = ['GC_content', 'AT_content', 
-                             'T_count', 'CpG_count', 
-                             'T_content', 'CpG_content']
+            self.features = [
+                "GC_content",
+                "AT_content",
+                "T_count",
+                "CpG_count",
+                "T_content",
+                "CpG_content",
+            ]
 
-    def run(self) -> Dict[str, Dict[str, Any]]:
+    def analyze(self, site) -> dict[str, Any]:
         """
-        Calculates intrinsic features for each site in the target.
+        Calculates intrinsic features for one site.
 
         Returns:
-            A dictionary mapping a feature to a dictionary of site IDs and the
-            feature's value for that site.
+            A dictionary mapping feature names to values.
         """
-        results = {feature: {} for feature in self.features}
+        sequence = str(site.sequence or "")
+        seq_len = len(sequence) if sequence else 0
+        results: dict[str, Any] = {}
 
-        for site in self.target.sites:
-            sequence = site.sequence
-            seq_len = len(sequence) if sequence else 0
+        if "GC_content" in self.features:
+            GC_content = sum(map(sequence.count, "GC")) / seq_len if seq_len > 0 else 0
+            results["GC_content"] = GC_content
 
-            if 'GC_content' in self.features:
-                GC_content = sum(map(sequence.count, "GC")) / seq_len if seq_len > 0 else 0
-                results['GC_content'][site.id] = GC_content
+        if "AT_content" in self.features:
+            AT_content = sum(map(sequence.count, "AT")) / seq_len if seq_len > 0 else 0
+            results["AT_content"] = AT_content
 
-            if 'AT_content' in self.features:
-                AT_content = sum(map(sequence.count, "AT")) / seq_len if seq_len > 0 else 0
-                results['AT_content'][site.id] = AT_content
-
-            if 'T_count' in self.features:
-                T_count = sequence.count('T')
-                results['T_count'][site.id] = T_count
+        if "T_count" in self.features:
+            T_count = sequence.count("T")
+            results["T_count"] = T_count
             
-            if 'T_content' in self.features:
-                T_content = sequence.count('T') / seq_len if seq_len > 0 else 0
-                results['T_content'][site.id] = T_content
+        if "T_content" in self.features:
+            T_content = sequence.count("T") / seq_len if seq_len > 0 else 0
+            results["T_content"] = T_content
 
-            if 'CpG_count' in self.features:
-                CpG_count = sequence.count('CG')
-                results['CpG_count'][site.id] = CpG_count
+        if "CpG_count" in self.features:
+            CpG_count = sequence.count("CG")
+            results["CpG_count"] = CpG_count
             
-            if 'CpG_content' in self.features:
-                CpG_content = sequence.count('CG') / seq_len if seq_len > 0 else 0
-                results['CpG_content'][site.id] = CpG_content
+        if "CpG_content" in self.features:
+            CpG_content = sequence.count("CG") / seq_len if seq_len > 0 else 0
+            results["CpG_content"] = CpG_content
 
         return results

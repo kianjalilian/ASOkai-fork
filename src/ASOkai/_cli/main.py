@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import logging
+from itertools import groupby
 from pathlib import Path
 from types import ModuleType
 from typing import Callable, Literal, cast
@@ -22,9 +23,14 @@ import yaml
 from ASOkai._pipeline import config as cfg
 from ASOkai._pipeline import runner
 from ASOkai._cwl.executors import CwlToolExecutor, ToilExecutor
+from ASOkai._pipeline.base import (
+    AnalysisStep,
+    CoreStep,
+)
 from ASOkai._pipeline.registry import get_steps, get_tasks, get_workflows
 
 DEFAULT_CONFIG = Path("config.yaml")
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
 
 class _VariadicOption(click.Option):
@@ -105,7 +111,7 @@ verbose_option = click.option(
 )
 
 
-@click.group()
+@click.group(context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def main(ctx: click.Context) -> None:
     """ASOkai — ASO design pipeline."""
@@ -128,7 +134,38 @@ def _resolve_step_module(step_name: str) -> ModuleType:
 # list
 # ---------------------------------------------------------------------------
 
-@main.command("list")
+def _step_category_path(step: object) -> tuple[str, ...]:
+    """Return the CLI category path for a step."""
+    if isinstance(step, CoreStep):
+        return ("core",)
+    if isinstance(step, AnalysisStep):
+        return ("analysis",)
+    return ("pipeline",)
+
+
+def _step_type_label(step: object) -> str:
+    """Return the CLI display label for a step type."""
+    return " / ".join(part.capitalize() for part in _step_category_path(step))
+
+
+def _analysis_scope_label(analysis_cls: type | None) -> str | None:
+    """Return the analysis-scope label derived from an analysis class."""
+    if analysis_cls is None:
+        return None
+    return getattr(analysis_cls, "scope_label", None)
+
+
+def _display_description(obj: object) -> str:
+    """Return CLI description text, enriching analysis steps with analysis scope."""
+    description = getattr(obj, "description", "")
+    if isinstance(obj, AnalysisStep):
+        scope = _analysis_scope_label(getattr(obj, "analysis_cls", None))
+        if scope:
+            return f"[{scope}] {description}"
+    return description
+
+
+@main.command("list", context_settings=CONTEXT_SETTINGS)
 @click.argument("unit", type=click.Choice(["steps", "tasks", "workflows"]))
 def list_cmd(unit: str) -> None:
     """List available steps, tasks, or workflows."""
@@ -140,8 +177,31 @@ def list_cmd(unit: str) -> None:
     if not registry:
         click.echo(f"No {unit} available.")
         return
+
+    name_width = max(len(name) for name in registry) + 2
+
+    if unit == "steps":
+        category_order = {"core": 0, "analysis": 1}
+        rows = sorted(
+            registry.items(),
+            key=lambda item: (
+                category_order.get(_step_category_path(item[1])[0], 99),
+                _step_category_path(item[1]),
+                item[0],
+            ),
+        )
+        for index, (category, items) in enumerate(
+            groupby(rows, key=lambda item: _step_category_path(item[1]))
+        ):
+            if index:
+                click.echo()
+            click.echo(" / ".join(part.capitalize() for part in category))
+            for name, obj in items:
+                click.echo(f"  {name:<{name_width}} {_display_description(obj)}")
+        return
+
     for name, obj in sorted(registry.items()):
-        click.echo(f"  {name:<35} {obj.description}")
+        click.echo(f"  {name:<{name_width}} {_display_description(obj)}")
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +320,7 @@ def _describe_step_input_overrides(step) -> None:
 
 def _describe_step(step) -> tuple[list[str], str]:
     """Print step-specific details and return dependencies for summary."""
+    click.echo(f"Type        : {_step_type_label(step)}")
     click.echo(f"CWL         : {step.cwl_path}")
     _describe_step_config_keys(step)
     _describe_step_input_overrides(step)
@@ -295,7 +356,7 @@ def _describe_dependencies(label: str, deps: list[str], unit: str, verbose: bool
         click.echo(f"{label}: {', '.join(str(d) for d in deps)}")
 
 
-@main.command("describe")
+@main.command("describe", context_settings=CONTEXT_SETTINGS)
 @verbose_option
 @click.argument("unit", type=click.Choice(["step", "task", "workflow"]))
 @click.argument("name")
@@ -312,7 +373,7 @@ def describe_cmd(ctx: click.Context, unit: str, name: str) -> None:
         raise click.ClickException(f"Unknown {unit} '{name}'.")
 
     click.echo(f"Name        : {obj.name}")
-    click.echo(f"Description : {obj.description}")
+    click.echo(f"Description : {_display_description(obj)}")
 
     if unit == "step":
         deps, label = _describe_step(obj)
@@ -411,7 +472,7 @@ def _collect_runnables(
     return runnables
 
 
-@main.command("run")
+@main.command("run", context_settings=CONTEXT_SETTINGS)
 @verbose_option
 @click.option(
     "-c", "--configfile", "--config-file",

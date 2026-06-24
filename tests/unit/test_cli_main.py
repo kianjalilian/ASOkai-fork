@@ -10,8 +10,11 @@ def test_hidden_step_command_is_not_listed_in_help():
     runner = CliRunner()
 
     result = runner.invoke(main, ["--help"])
+    short_result = runner.invoke(main, ["-h"])
 
     assert result.exit_code == 0
+    assert short_result.exit_code == 0
+    assert "Usage:" in short_result.output
     assert " step " not in result.output
 
 
@@ -19,12 +22,24 @@ def test_run_help_uses_configfile_and_config_override_options():
     runner = CliRunner()
 
     result = runner.invoke(main, ["run", "--help"])
+    short_result = runner.invoke(main, ["run", "-h"])
 
     assert result.exit_code == 0
+    assert short_result.exit_code == 0
+    assert "--configfile, --config-file PATH" in short_result.output
     assert "--configfile, --config-file PATH" in result.output
     assert "--executor [toil|cwltool]" in result.output
     assert "--config KEY=VALUE [KEY=VALUE ...]" in result.output
     assert "--set" not in result.output
+
+
+def test_public_subcommands_accept_short_help():
+    runner = CliRunner()
+
+    for command in ("list", "describe", "run"):
+        result = runner.invoke(main, [command, "-h"])
+        assert result.exit_code == 0
+        assert "Usage:" in result.output
 
 
 def test_list_commands_show_registered_units():
@@ -35,14 +50,17 @@ def test_list_commands_show_registered_units():
     workflows = runner.invoke(main, ["list", "workflows"])
 
     assert steps.exit_code == 0
+    assert "Core\n" in steps.output
+    assert "Analysis\n" in steps.output
     assert "download-genome" in steps.output
-    assert "[core] Downloads genome DNA" in steps.output
+    assert "Downloads genome DNA" in steps.output
     assert "create-target-gene" in steps.output
     assert "intrinsic-features" in steps.output
+    assert "[Site-specific] Computes intrinsic features" in steps.output
 
     assert tasks.exit_code == 0
     assert "instantiate-target-gene" in tasks.output
-    assert "[core] Downloads genome data" in tasks.output
+    assert "Downloads genome data" in tasks.output
 
     assert workflows.exit_code == 0
     assert "standard" in workflows.output
@@ -56,6 +74,7 @@ def test_describe_step_create_target_gene_shows_details():
 
     assert result.exit_code == 0
     assert "Name        : create-target-gene" in result.output
+    assert "Type        : Core" in result.output
     assert "CWL         :" in result.output
     assert "create-target-gene.cwl" in result.output
     assert "Config keys :" in result.output
@@ -97,6 +116,8 @@ def test_verbose_describe_step_shows_dependency_tree():
     result = runner.invoke(main, ["describe", "--verbose", "step", "intrinsic-features"])
 
     assert result.exit_code == 0
+    assert "Type        : Analysis" in result.output
+    assert "Description : [Site-specific] Computes intrinsic features" in result.output
     assert "Dependencies:" in result.output
     assert "`-- create-target-gene" in result.output
     assert "`-- download-genome" in result.output

@@ -18,7 +18,7 @@ from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
 
 class InstantiateTargetGeneTask:
     name = "instantiate-target-gene"
-    description = "[core] Downloads genome data and creates the configured target gene."
+    description = "Downloads genome data and creates the configured target gene."
     steps: list[Step] = [
         DownloadGenomeStep(),
         CreateTargetGeneStep(),

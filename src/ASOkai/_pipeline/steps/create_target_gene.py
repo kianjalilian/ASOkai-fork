@@ -15,13 +15,15 @@ import sys
 from pathlib import Path
 from importlib.resources import files
 
+from ASOkai._pipeline.base import CoreStep
+
 
 logger = logging.getLogger(__name__)
 
 
-class CreateTargetGeneStep:
+class CreateTargetGeneStep(CoreStep):
     name = "create-target-gene"
-    description = "[core] Creates a target gene object from genome data and extracts ASO target sites."
+    description = "Creates a target gene object from genome data and extracts ASO target sites."
     cli_module = "ASOkai._pipeline.steps.create_target_gene"
     dependencies: list[str] = ["download-genome"]
     config_map = {

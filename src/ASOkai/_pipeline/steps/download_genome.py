@@ -16,10 +16,12 @@ from pathlib import Path
 from importlib.resources import files
 from GenomeUtils.Downloaders import EnsemblGenomeDownloader
 
+from ASOkai._pipeline.base import CoreStep
 
-class DownloadGenomeStep:
+
+class DownloadGenomeStep(CoreStep):
     name = "download-genome"
-    description = "[core] Downloads genome DNA (primary assembly FASTA), cDNA (FASTA), and annotation (GTF)."
+    description = "Downloads genome DNA (primary assembly FASTA), cDNA (FASTA), and annotation (GTF)."
     cli_module = "ASOkai._pipeline.steps.download_genome"
     dependencies: list[str] = []
     config_map = {

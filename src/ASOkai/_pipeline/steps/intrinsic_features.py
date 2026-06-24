@@ -14,10 +14,14 @@ import sys
 from pathlib import Path
 from importlib.resources import files
 
+from ASOkai.Analysis import IntrinsicFeaturesAnalysis
+from ASOkai._pipeline.base import AnalysisStep
 
-class IntrinsicFeaturesStep:
+
+class IntrinsicFeaturesStep(AnalysisStep):
     name = "intrinsic-features"
-    description = "[analysis] Computes intrinsic features (GC content, T-runs, AT-runs) for each ASO target site."
+    description = "Computes intrinsic features (GC content, T-runs, AT-runs) for each ASO target site."
+    analysis_cls = IntrinsicFeaturesAnalysis
     cli_module = "ASOkai._pipeline.steps.intrinsic_features"
     dependencies: list[str] = ["create-target-gene"]
     config_map = {
@@ -70,6 +74,28 @@ class IntrinsicFeaturesStep:
             if p.exists():
                 p.unlink()
 
+    def load_analysis_inputs(self, args) -> dict:
+        from ASOkai.Targets import TargetGene
+
+        return {
+            "target_gene": TargetGene.from_file(str(args.target_gene)),
+        }
+
+    def analysis_kwargs(self, args, inputs: dict) -> dict:
+        return {
+            "sites": inputs["target_gene"].sites,
+        }
+
+    def analysis_metadata(self, args, inputs: dict) -> dict:
+        return {
+            "analysis": self.name,
+            "assembly": args.assembly,
+            "target_id": args.target_id,
+            "target_name": args.target_name,
+            "k": args.k,
+            "region": args.region,
+        }
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -94,8 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.target_id and not args.target_name:
         parser.error("Either --target-id or --target-name is required.")
 
-    # TODO: wire IntrinsicFeaturesAnalysis here
-    raise NotImplementedError("intrinsic-features script not yet implemented.")
+    return IntrinsicFeaturesStep().run_from_args(args)
 
 
 if __name__ == "__main__":

@@ -21,12 +21,12 @@ def _make_step(
     exists: bool = False,
     output_names: list[str] | None = None,
 ) -> Step:
-    """Return a minimal object that satisfies the Step protocol."""
+    """Return a minimal concrete Step for plan tests."""
     if output_names is None:
         output_names = [f"{name}_out"]
     dependencies = list(deps or [])
 
-    class _Step:
+    class _Step(Step):
         name: str
         description: str
         cli_module: str

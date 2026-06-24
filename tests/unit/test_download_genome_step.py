@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 from ASOkai._pipeline.steps.download_genome import DownloadGenomeStep
-from ASOkai._pipeline.base import Step
+from ASOkai._pipeline.base import CoreStep, Step
 
 
 @pytest.fixture
@@ -26,6 +26,7 @@ def step():
 
 def test_implements_protocol(step):
     assert isinstance(step, Step)
+    assert isinstance(step, CoreStep)
 
 
 def test_name(step):
