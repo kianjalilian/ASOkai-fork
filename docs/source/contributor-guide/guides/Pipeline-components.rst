@@ -17,7 +17,7 @@ workflows. Each runnable provides a name, description, declared output paths,
 output-existence checks, and cleanup behavior.
 
 Step types
-----------
+-----------
 
 :class:`Step` is the base class for an atomic pipeline operation. Each step
 defines its parameters, inputs, outputs, and configuration mapping through its
