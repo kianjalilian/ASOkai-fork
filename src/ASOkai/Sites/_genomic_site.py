@@ -9,8 +9,9 @@ License: LGPL-3.0-or-later
 """
 from GenomeUtils.Genome import Locus
 from GenomeUtils.Genome import GenomeElement
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 from Bio.Seq import Seq
+from ..Types import Strand
 from ._site import Site
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ class GenomicSite(Site, GenomeElement):
                  chr: str, 
                  start: int, 
                  end: int, 
-                 strand: Literal["+", "-"], 
+                 strand: Strand,
                  sequence: Seq,
                  id: str | None = None,
                  genome: "Genome | None" = None,

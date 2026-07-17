@@ -12,8 +12,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import ClassVar, Literal
+from typing import ClassVar
 
+from ASOkai.Types import TargetRegion
 from ASOkai._cwl.spec import (
     TemplateField,
     OutputPathTemplate,
@@ -53,7 +54,7 @@ class CreateTargetGeneStep(CoreStep):
             ScalarParam("k", int, config="target.k", doc="ASO length."),
             ScalarParam(
                 "region",
-                Literal["exonic_only", "pre-mrna", "transcriptomic"],
+                TargetRegion,
                 config="target.region",
                 doc="Target region type.",
             ),

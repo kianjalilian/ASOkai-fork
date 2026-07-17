@@ -9,8 +9,9 @@ License: LGPL-3.0-or-later
 """
 from GenomeUtils.Genome import Gene, Genome, Chromosome
 from ._target import Target
-from typing import Literal, Mapping, cast
+from typing import Mapping, cast
 from Bio.Seq import Seq
+from ..Types import Strand
 from ..Sites import Site
 
 
@@ -28,7 +29,7 @@ class TargetGene(Target, Gene):
                  chr: str,
                  start: int,
                  end: int,
-                 strand: Literal["+", "-"],
+                 strand: Strand,
                  sequence: Seq,
                  sites: Mapping[str, Site],
                  genome: Genome | None = None,
@@ -64,4 +65,3 @@ class TargetGene(Target, Gene):
     @property
     def sequence(self) -> Seq:
         return self._sequence
-

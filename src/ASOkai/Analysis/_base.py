@@ -9,8 +9,9 @@ License: LGPL-3.0-or-later
 """
 from abc import ABC, abstractmethod
 from multiprocessing import get_context
-from typing import Any, ClassVar, Dict
+from typing import ClassVar
 
+from ..Types import Scalar
 from ..Targets import Target
 from GenomeUtils.Genome import Genome
 
@@ -27,7 +28,7 @@ class Analysis(ABC):
         self.n_processes = n_processes
         self.kwargs = kwargs
 
-    def run(self) -> Dict[str, Dict[str, Any]]:
+    def run(self) -> dict[str, dict[str, Scalar]]:
         """Execute this analysis over all configured sites."""
         if self.n_processes == 1:
             return dict(self._analyze_site(site) for site in self.sites)
@@ -35,12 +36,12 @@ class Analysis(ABC):
         with get_context("spawn").Pool(processes=self.n_processes) as pool:
             return dict(pool.map(self._analyze_site, self.sites))
 
-    def _analyze_site(self, site) -> tuple[str, dict[str, Any]]:
+    def _analyze_site(self, site) -> tuple[str, dict[str, Scalar]]:
         return site.id, self.analyze(site)
 
     @abstractmethod
-    def analyze(self, site) -> dict[str, Any]:
-        """Analyze one site."""
+    def analyze(self, site) -> dict[str, Scalar]:
+        """Analyze one site and return CSV-compatible scalar values."""
         ...
 
     def __call__(self, *args, **kwargs):

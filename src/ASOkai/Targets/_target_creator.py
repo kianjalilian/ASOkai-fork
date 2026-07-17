@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from ._target import Target
 from GenomeUtils.Genome import Genome
 from typing import Iterator, List, Optional
+from ..Types import TargetRegion
 
 class TargetCreator(ABC):
     """Abstract base class for candidate target creators."""
@@ -39,7 +40,7 @@ class TargetCreator(ABC):
         target_name: str | None = None,
         *,
         k: int,
-        region: str = "exonic_only",
+        region: TargetRegion = "exonic_only",
     ) -> Target:
         """
         Abstract method to load candidate from genome.

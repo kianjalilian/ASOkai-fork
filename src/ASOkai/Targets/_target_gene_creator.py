@@ -10,8 +10,9 @@ License: LGPL-3.0-or-later
 from ._target_creator import TargetCreator
 from ._target_gene import TargetGene
 from GenomeUtils.Genome import Genome, Gene, Exon, Locus
-from typing import Dict, Set, List, Iterator, Literal, Optional, cast
+from typing import Dict, Set, List, Iterator, Optional, cast
 from Bio.Seq import Seq
+from ..Types import Strand, TargetRegion
 from ..Sites import Site
 from ..Sites import GenomicSite
 from ..Sites import TranscriptSite
@@ -19,10 +20,10 @@ from ..Sites import TranscriptSite
 
 # Module-level helper functions for site extraction
 
-def _validated_strand(value: str) -> Literal["+", "-"]:
+def _validated_strand(value: str) -> Strand:
     if value not in ("+", "-"):
         raise ValueError(f"Invalid strand: {value!r}")
-    return cast(Literal["+", "-"], value)
+    return cast(Strand, value)
 
 def _extract_exonic_only_sites(gene: Gene, genome: Genome, k: int, id_generator: Iterator[str]) -> Dict[str, GenomicSite]:
     """
@@ -128,7 +129,7 @@ class TargetGeneCreator(TargetCreator):
         target_name: Optional[str] = None,
         *,
         k: int,
-        region: str = "exonic_only",
+        region: TargetRegion = "exonic_only",
     ) -> TargetGene:
         """
         Creates a `TargetGene` object from a gene ID or name within a `Genome` object.

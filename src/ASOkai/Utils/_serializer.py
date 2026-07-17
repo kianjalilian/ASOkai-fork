@@ -7,13 +7,12 @@ Version: 0.1.1
 Description: This file defines the Serializable class for serializing and deserializing objects.
 License: LGPL-3.0-or-later
 """
-from typing import Dict, Any, Type, TypeVar, Callable, Optional
+from typing import Dict, Any, Type, Callable, Optional
 import json
 import importlib
 import inspect
 
-T = TypeVar('T', bound='Serializable')
-
+from ..Types import Scalar
 
 class Serializable:
     """
@@ -100,7 +99,7 @@ class Serializable:
         """
         Default method to serialize a value to a dictionary.
         """
-        if isinstance(value, (str, int, float, bool, type(None))):
+        if isinstance(value, Scalar):
             return value
         elif isinstance(value, Serializable):
             return value.to_dict()
@@ -149,7 +148,7 @@ class Serializable:
         return {attribute_name: cls._deserialize_value(value)}
 
     @classmethod
-    def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+    def from_dict(cls: Type["Serializable"], data: Dict[str, Any]) -> "Serializable":
         """
         Create an object from a dictionary.
         """
@@ -189,7 +188,7 @@ class Serializable:
 
 
     @classmethod
-    def from_file(cls: Type[T], file_path: str) -> T:
+    def from_file(cls: Type["Serializable"], file_path: str) -> "Serializable":
         """
         Create an object from a JSON file.
         """

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import ClassVar, Literal
+from typing import ClassVar
 
+from ASOkai.Types import TargetRegion
 from ASOkai.Analysis import IntrinsicFeaturesAnalysis
 from ASOkai._cwl.spec import (
     TemplateField,
@@ -52,7 +53,7 @@ class IntrinsicFeaturesStep(AnalysisStep):
             ScalarParam("k", int, config="target.k", doc="ASO length."),
             ScalarParam(
                 "region",
-                Literal["exonic_only", "pre-mrna", "transcriptomic"],
+                TargetRegion,
                 config="target.region",
                 doc="Target region type.",
             ),

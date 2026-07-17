@@ -7,8 +7,7 @@ Version: 0.1.1
 Description: This file defines the IntrinsicFeaturesAnalysis class for analyzing intrinsic features of target sites.
 License: LGPL-3.0-or-later
 """
-from typing import Any
-
+from ..Types import Scalar
 from ._base import SiteSpecificAnalysis
 
 
@@ -46,7 +45,7 @@ class IntrinsicFeaturesAnalysis(SiteSpecificAnalysis):
         self.features: list[str] = features
         super().__init__(sites, **kwargs)
 
-    def analyze(self, site) -> dict[str, Any]:
+    def analyze(self, site) -> dict[str, Scalar]:
         """
         Calculates intrinsic features for one site.
 
@@ -55,7 +54,7 @@ class IntrinsicFeaturesAnalysis(SiteSpecificAnalysis):
         """
         sequence = str(site.sequence or "")
         seq_len = len(sequence) if sequence else 0
-        results: dict[str, Any] = {}
+        results: dict[str, Scalar] = {}
 
         if "GC_content" in self.features:
             GC_content = sum(map(sequence.count, "GC")) / seq_len if seq_len > 0 else 0
