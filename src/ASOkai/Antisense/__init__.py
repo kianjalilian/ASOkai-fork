@@ -7,11 +7,11 @@ Version: 0.1.1
 Description: This file initializes the antisense module.
 License: LGPL-3.0-or-later
 """
-from ._antisense_construct import AntisenseConstruct
+from ._oligonucleotide import Oligonucleotide
 from ._aso import ASO
-__all__ = [
-    "AntisenseConstruct",
-    "ASO",
-]
 
+__all__ = [
+    "ASO",
+    "Oligonucleotide",
+]
 

@@ -7,5 +7,8 @@ Version: 0.1.1
 Description: This file defines the ASO class, representing an antisense oligonucleotide.
 License: LGPL-3.0-or-later
 """
-class ASO:
+from ._oligonucleotide import Oligonucleotide
+
+
+class ASO(Oligonucleotide):
     pass
