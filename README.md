@@ -168,6 +168,12 @@ External programs used by some workflows are not installed via `pip` with the AS
 
 [KMC](https://github.com/refresh-bio/KMC) is GPLv3-only; see the upstream repository for the license text.
 
+
+## Documentation
+
+To build the document using sphinx, run:
+`sphinx-build -M html docs/source docs/build`
+
 ## License
 
 This software is under L-GPL-3.0-later.
